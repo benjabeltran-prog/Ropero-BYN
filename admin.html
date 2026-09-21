@@ -7,6 +7,8 @@
   <meta name="robots" content="noindex, nofollow" />
 
   <link rel="manifest" href="manifest-admin.json" />
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <meta name="theme-color" content="#faf9f7" />
 
@@ -22,9 +24,19 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <div>
-        <h1>Ropero</h1>
-        <div class="subtitle">Panel de administración</div>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="6" r="1.6"></circle>
+            <path d="M12 7.6v1.6"></path>
+            <path d="M12 9.2 3.6 16.4a1.5 1.5 0 0 0 1 2.6h14.8a1.5 1.5 0 0 0 1-2.6L12 9.2Z"></path>
+            <path d="M6.2 20h11.6"></path>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>Ropero</h1>
+          <div class="subtitle">Panel de administración</div>
+        </div>
       </div>
       <a class="icon-link" href="index.html">Ver catálogo</a>
     </header>
