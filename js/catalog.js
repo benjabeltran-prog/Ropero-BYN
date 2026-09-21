@@ -105,10 +105,16 @@ function hashString(str) {
   return hash;
 }
 
-// Precio "antes" tachado + % de descuento, distinto por prenda pero
-// siempre entre 50% y 70%. Se calcula a partir del precio real (lo que
-// efectivamente se cobra), nunca al revés.
+// Precio "antes" tachado + % de descuento. Si el admin cargó un precio de
+// referencia real (el precio "antes" verdadero, cuando lo conoce), el %
+// se calcula a partir de ese valor real. Si no, se simula un % parejo
+// (50%–70%, distinto por prenda pero estable) a partir del precio real de
+// venta, nunca al revés.
 function discountInfo(item) {
+  if (item.reference_price && item.reference_price > item.price) {
+    const pct = Math.round((1 - item.price / item.reference_price) * 100);
+    return { pct, original: item.reference_price };
+  }
   const pct = 50 + (hashString(item.id) % 21); // 50–70 inclusive
   const rawOriginal = item.price / (1 - pct / 100);
   const original = Math.round(rawOriginal / 500) * 500; // redondeado a $500 más cercano
@@ -180,11 +186,42 @@ function itemUrl(item) {
   return `${base}?item=${item.id}`;
 }
 
-function openDetail(item) {
-  // Una sola foto por prenda: la original que subió el admin (ver nota en
-  // la Edge Function sobre por qué se sacó la versión "mejorada").
-  const photo = item.photo_original || item.photo_enhanced || "";
+// Foto principal (la original que subió el admin) + hasta dos fotos extra
+// que el admin haya agregado a mano desde el panel de administración.
+function photosOf(item) {
+  return [item.photo_original || item.photo_enhanced, item.photo_variant_1, item.photo_variant_2].filter(Boolean);
+}
 
+function galleryHtml(item) {
+  const photos = photosOf(item);
+  const dots =
+    photos.length > 1
+      ? `<div class="gallery-dots">${photos
+          .map((_, i) => `<span class="dot${i === 0 ? " active" : ""}"></span>`)
+          .join("")}</div>`
+      : "";
+  return `
+    <div class="gallery-wrap">
+      <div class="gallery" id="gallery">
+        ${photos.map((p) => `<img src="${p}" alt="${escapeHtml(item.title)}" />`).join("")}
+      </div>
+      ${dots}
+    </div>
+  `;
+}
+
+function wireGallery() {
+  const galleryEl = document.getElementById("gallery");
+  const dotsEl = galleryEl?.nextElementSibling;
+  if (!galleryEl || !dotsEl || !dotsEl.classList.contains("gallery-dots")) return;
+  const dots = dotsEl.querySelectorAll(".dot");
+  galleryEl.addEventListener("scroll", () => {
+    const idx = Math.round(galleryEl.scrollLeft / galleryEl.clientWidth);
+    dots.forEach((d, i) => d.classList.toggle("active", i === idx));
+  });
+}
+
+function openDetail(item) {
   const isAvailable = item.status === "disponible";
   const statusLabel = item.status === "reservada" ? "Reservada" : item.status === "vendida" ? "Vendida" : "";
 
@@ -193,9 +230,7 @@ function openDetail(item) {
       <div class="detail-sheet">
         <button class="detail-share" id="share-item-btn" aria-label="Compartir esta prenda">${SHARE_ICON}</button>
         <button class="detail-close" id="close-btn" aria-label="Cerrar">${CLOSE_ICON}</button>
-        <div class="gallery" id="gallery">
-          <img src="${photo}" alt="${escapeHtml(item.title)}" />
-        </div>
+        ${galleryHtml(item)}
         <div class="detail-body">
           ${priceBlockHtml(item, { size: "lg" })}
           <div class="meta">
@@ -225,6 +260,7 @@ function openDetail(item) {
     if (e.target.id === "overlay") closeDetail();
   });
   document.getElementById("share-item-btn").addEventListener("click", () => shareItem(item));
+  wireGallery();
 
   const reserveBtn = document.getElementById("reserve-btn");
   if (reserveBtn) {

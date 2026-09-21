@@ -31,6 +31,150 @@ async function regenerateDescription(imageUrl, size, condition) {
   return data.description;
 }
 
+// ---------- Fotos: galería + fotos extra (agregadas a mano) ---------------
+// La foto original (la que subió el admin al crear la prenda) siempre va
+// primero y no se puede quitar desde acá. Además de esa, el admin puede
+// agregar hasta 2 fotos extra por prenda (photo_variant_1 / photo_variant_2),
+// que se suben directo a Storage desde el navegador (el admin ya está
+// autenticado, así que las políticas de RLS lo permiten sin pasar por
+// ninguna Edge Function).
+const EXTRA_PHOTO_SLOTS = ["photo_variant_1", "photo_variant_2"];
+
+function photosOf(item) {
+  return [item.photo_original || item.photo_enhanced, item.photo_variant_1, item.photo_variant_2].filter(Boolean);
+}
+
+function galleryHtml(item, galleryId) {
+  const photos = photosOf(item);
+  const dots =
+    photos.length > 1
+      ? `<div class="gallery-dots">${photos
+          .map((_, i) => `<span class="dot${i === 0 ? " active" : ""}"></span>`)
+          .join("")}</div>`
+      : "";
+  return `
+    <div class="gallery-wrap" id="${galleryId}-wrap">
+      <div class="gallery" id="${galleryId}">
+        ${photos.map((p) => `<img src="${p}" alt="foto de la prenda" />`).join("")}
+      </div>
+      ${dots}
+    </div>
+  `;
+}
+
+function photoManagerHtml(item, managerId) {
+  const slotsHtml = EXTRA_PHOTO_SLOTS.map((slotKey) => {
+    const url = item[slotKey];
+    if (url) {
+      return `
+        <div class="extra-photo-thumb">
+          <img src="${url}" alt="foto adicional" />
+          <button type="button" class="extra-photo-remove" data-remove-slot="${slotKey}" aria-label="Quitar foto">×</button>
+        </div>
+      `;
+    }
+    return `
+      <label class="extra-photo-add" data-add-slot="${slotKey}">
+        <input type="file" accept="image/*" hidden data-file-slot="${slotKey}" />
+        <span>+</span>
+      </label>
+    `;
+  }).join("");
+
+  return `
+    <div class="field" id="${managerId}">
+      <label>Fotos adicionales (opcional)</label>
+      <div class="extra-photos">${slotsHtml}</div>
+    </div>
+  `;
+}
+
+async function uploadExtraPhoto(item, slotKey, file) {
+  const ext = (file.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+  const slotNum = slotKey === "photo_variant_1" ? "1" : "2";
+  const path = `${item.id}/variant${slotNum}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage.from("ropero-photos").upload(path, file, {
+    contentType: file.type || "image/jpeg",
+    upsert: true,
+  });
+  if (uploadError) {
+    alert("No se pudo subir la foto: " + uploadError.message);
+    return false;
+  }
+
+  const { data: pub } = supabase.storage.from("ropero-photos").getPublicUrl(path);
+  const url = `${pub.publicUrl}?v=${Date.now()}`; // cache-busting: el path se reutiliza al reemplazar
+
+  const { error: updateError } = await supabase.from("items").update({ [slotKey]: url }).eq("id", item.id);
+  if (updateError) {
+    alert("No se pudo guardar la foto: " + updateError.message);
+    return false;
+  }
+
+  item[slotKey] = url;
+  return true;
+}
+
+async function removeExtraPhoto(item, slotKey) {
+  const { error } = await supabase.from("items").update({ [slotKey]: null }).eq("id", item.id);
+  if (error) {
+    alert("No se pudo quitar la foto: " + error.message);
+    return false;
+  }
+  item[slotKey] = null;
+  return true;
+}
+
+function wireGalleryScroll(galleryId) {
+  const galleryEl = document.getElementById(galleryId);
+  const dotsEl = galleryEl?.nextElementSibling;
+  if (!galleryEl || !dotsEl || !dotsEl.classList.contains("gallery-dots")) return;
+  const dots = dotsEl.querySelectorAll(".dot");
+  galleryEl.addEventListener("scroll", () => {
+    const idx = Math.round(galleryEl.scrollLeft / galleryEl.clientWidth);
+    dots.forEach((d, i) => d.classList.toggle("active", i === idx));
+  });
+}
+
+// Conecta la galería + el administrador de fotos extra dentro de una hoja
+// (Revisar o Editar). Al agregar/quitar una foto, vuelve a dibujar ambos
+// bloques en el lugar para reflejar el cambio al instante.
+function wireGalleryAndManager(item, galleryId, managerId) {
+  wireGalleryScroll(galleryId);
+  const managerEl = document.getElementById(managerId);
+  if (!managerEl) return;
+
+  const refresh = () => {
+    const wrapEl = document.getElementById(`${galleryId}-wrap`);
+    if (wrapEl) wrapEl.outerHTML = galleryHtml(item, galleryId);
+    managerEl.outerHTML = photoManagerHtml(item, managerId);
+    wireGalleryAndManager(item, galleryId, managerId);
+  };
+
+  managerEl.querySelectorAll("[data-file-slot]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const slotKey = input.dataset.fileSlot;
+      input.closest(".extra-photo-add")?.classList.add("loading");
+      const ok = await uploadExtraPhoto(item, slotKey, file);
+      if (ok) refresh();
+      else input.closest(".extra-photo-add")?.classList.remove("loading");
+    });
+  });
+
+  managerEl.querySelectorAll("[data-remove-slot]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (!confirm("¿Quitar esta foto adicional?")) return;
+      const slotKey = btn.dataset.removeSlot;
+      const ok = await removeExtraPhoto(item, slotKey);
+      if (ok) refresh();
+    });
+  });
+}
+
 // ---------- Auth ---------------------------------------------------------
 
 async function checkSession() {
@@ -116,6 +260,8 @@ generateBtn.addEventListener("click", async () => {
   const category = document.getElementById("category").value;
   const size = document.getElementById("size").value;
   const condition = document.getElementById("condition").value;
+  const referencePriceRaw = document.getElementById("reference-price").value;
+  const referencePrice = referencePriceRaw ? Number(referencePriceRaw) : null;
 
   if (!selectedFile) {
     showGenerateStatus("Elige primero una foto de la prenda.", true);
@@ -140,6 +286,7 @@ generateBtn.addEventListener("click", async () => {
         category,
         size,
         condition,
+        referencePrice,
       },
     });
 
@@ -172,6 +319,7 @@ function resetForm() {
   document.getElementById("size").value = "";
   document.getElementById("category").value = "";
   document.getElementById("condition").value = "";
+  document.getElementById("reference-price").value = "";
 }
 
 // ---------- Revisar y publicar (borrador) ------------------------------
@@ -181,11 +329,10 @@ function openReview(item) {
     <div class="detail-overlay" id="review-overlay">
       <div class="detail-sheet">
         <button class="detail-close" id="review-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg></button>
-        <div class="gallery">
-          <img src="${item.photo_original || item.photo_enhanced || ""}" alt="foto de la prenda" />
-        </div>
+        ${galleryHtml(item, "review-gallery")}
         <div class="detail-body">
           <div class="status-banner">Revisa el resultado antes de publicarlo en el catálogo.</div>
+          ${photoManagerHtml(item, "review-photo-manager")}
           <div class="field">
             <label>Título</label>
             <input id="review-title" type="text" value="${escapeAttr(item.title)}" />
@@ -193,6 +340,10 @@ function openReview(item) {
           <div class="field">
             <label>Precio (CLP)</label>
             <input id="review-price" type="number" value="${item.price}" />
+          </div>
+          <div class="field">
+            <label>Precio de referencia (opcional)</label>
+            <input id="review-reference-price" type="number" inputmode="numeric" placeholder="Precio original, solo si lo sabes" value="${item.reference_price || ""}" />
           </div>
           <div class="field">
             <div class="field-label-row">
@@ -214,6 +365,7 @@ function openReview(item) {
   document.getElementById("review-overlay").addEventListener("click", (e) => {
     if (e.target.id === "review-overlay") closeReview();
   });
+  wireGalleryAndManager(item, "review-gallery", "review-photo-manager");
 
   document.getElementById("review-regen-btn").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
@@ -243,10 +395,12 @@ function openReview(item) {
     const title = document.getElementById("review-title").value.trim();
     const price = Number(document.getElementById("review-price").value);
     const description = document.getElementById("review-description").value.trim();
+    const referencePriceRaw = document.getElementById("review-reference-price").value;
+    const reference_price = referencePriceRaw ? Number(referencePriceRaw) : null;
 
     const { error } = await supabase
       .from("items")
-      .update({ title, price, description, status: "disponible" })
+      .update({ title, price, description, reference_price, status: "disponible" })
       .eq("id", item.id);
 
     if (error) {
@@ -283,11 +437,10 @@ function openEdit(item) {
     <div class="detail-overlay" id="edit-overlay">
       <div class="detail-sheet">
         <button class="detail-close" id="edit-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg></button>
-        <div class="gallery">
-          <img src="${item.photo_original || item.photo_enhanced || ""}" alt="foto de la prenda" />
-        </div>
+        ${galleryHtml(item, "edit-gallery")}
         <div class="detail-body">
           <div class="status-banner">Editando "${escapeAttr(item.title)}"</div>
+          ${photoManagerHtml(item, "edit-photo-manager")}
           <div class="field">
             <label for="edit-title">Título</label>
             <input id="edit-title" type="text" value="${escapeAttr(item.title)}" />
@@ -301,6 +454,10 @@ function openEdit(item) {
               <label for="edit-category">Categoría</label>
               <select id="edit-category">${selectOptions(["Mujer", "Hombre", "Niños", "Accesorios", "Calzado"], item.category)}</select>
             </div>
+          </div>
+          <div class="field">
+            <label for="edit-reference-price">Precio de referencia (opcional)</label>
+            <input id="edit-reference-price" type="number" inputmode="numeric" placeholder="Precio original, solo si lo sabes" value="${item.reference_price || ""}" />
           </div>
           <div class="row-2">
             <div class="field">
@@ -353,6 +510,7 @@ function openEdit(item) {
   document.getElementById("edit-overlay").addEventListener("click", (e) => {
     if (e.target.id === "edit-overlay") closeReview();
   });
+  wireGalleryAndManager(item, "edit-gallery", "edit-photo-manager");
 
   document.getElementById("edit-save-btn").addEventListener("click", async (e) => {
     const title = document.getElementById("edit-title").value.trim();
@@ -361,6 +519,8 @@ function openEdit(item) {
     const size = document.getElementById("edit-size").value.trim();
     const condition = document.getElementById("edit-condition").value;
     const description = document.getElementById("edit-description").value.trim();
+    const referencePriceRaw = document.getElementById("edit-reference-price").value;
+    const reference_price = referencePriceRaw ? Number(referencePriceRaw) : null;
 
     if (!title || !price) {
       alert("Completa al menos el título y el precio.");
@@ -372,7 +532,7 @@ function openEdit(item) {
 
     const { error } = await supabase
       .from("items")
-      .update({ title, price, category, size, condition, description })
+      .update({ title, price, category, size, condition, description, reference_price })
       .eq("id", item.id);
 
     if (error) {

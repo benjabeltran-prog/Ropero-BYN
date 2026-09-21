@@ -27,9 +27,12 @@ create table if not exists ropero.items (
   status text not null default 'borrador'
     check (status in ('borrador', 'disponible', 'reservada', 'vendida')),
   photo_original text,
-  photo_enhanced text,
-  photo_variant_1 text, -- sin uso por ahora (la función solo genera la foto mejorada)
-  photo_variant_2 text, -- sin uso por ahora (la función solo genera la foto mejorada)
+  photo_enhanced text, -- sin uso (se sacó el auto-niveles, ver ropero-enhance-product)
+  photo_variant_1 text, -- foto extra que el admin agrega a mano desde Revisar/Editar
+  photo_variant_2 text, -- foto extra que el admin agrega a mano desde Revisar/Editar
+  reference_price numeric(12, 0), -- precio "antes" REAL, solo si el admin lo conoce;
+                                   -- si está, el % de descuento se calcula de ahí en vez
+                                   -- de simularse (ver discountInfo() en catalog.js)
   created_at timestamptz not null default now(),
   reserved_at timestamptz
 );

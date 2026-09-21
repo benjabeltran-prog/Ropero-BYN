@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { imageBase64, mimeType, price, category, size, condition } = body ?? {};
+    const { imageBase64, mimeType, price, category, size, condition, referencePrice } = body ?? {};
 
     if (!imageBase64 || !mimeType || price === undefined || price === null) {
       return json(
@@ -119,6 +119,10 @@ Deno.serve(async (req: Request) => {
         condition,
         status: "borrador",
         photo_original: originalUrl,
+        reference_price:
+          referencePrice === undefined || referencePrice === null || referencePrice === ""
+            ? null
+            : Number(referencePrice),
       })
       .select()
       .single();
