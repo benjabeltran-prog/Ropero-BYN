@@ -168,9 +168,8 @@ function openReview(item) {
       <div class="detail-sheet">
         <button class="detail-close" id="review-close">✕</button>
         <div class="gallery">
-          <img src="${item.photo_enhanced}" alt="mejorada" />
-          <img src="${item.photo_variant_1}" alt="variante 1" />
-          <img src="${item.photo_variant_2}" alt="variante 2" />
+          <img src="${item.photo_enhanced}" alt="foto mejorada" />
+          <img src="${item.photo_original}" alt="foto original" />
         </div>
         <div class="detail-body">
           <div class="status-banner">Revisa el resultado antes de publicarlo en el catálogo.</div>

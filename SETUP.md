@@ -14,7 +14,7 @@ resumen de lo que hay y lo poco que falta de tu lado.
 - **Tu usuario admin**: `benjabeltran@gmail.com`, ya creado y probado —
   es el único que puede administrar Ropero en ese proyecto compartido.
 - **Función de IA**: `ropero-enhance-product` desplegada, llama a Gemini
-  para mejorar la foto, generar 2 variantes y escribir la descripción.
+  para mejorar la foto y escribir la descripción.
 - **Frontend**: `js/config.js` ya tiene la URL y la key de Supabase, y tu
   número de WhatsApp (`56966574792`) cableado en el botón de Reservar.
 
@@ -27,8 +27,8 @@ resumen de lo que hay y lo poco que falta de tu lado.
    funcionando. Actívala en [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
    (o vinculando una cuenta de facturación en
    [console.cloud.google.com/billing](https://console.cloud.google.com/billing)
-   al proyecto de esa key). Costo real: ~US$0.05-0.07 por imagen
-   generada, ~US$0.15-0.20 por prenda publicada (genera 3 imágenes).
+   al proyecto de esa key). Costo real: ~US$0.05-0.07 por prenda
+   publicada (genera 1 imagen mejorada).
 2. **Publicar con GitHub Pages**: en este repo, ve a **Settings → Pages
    → Source: Deploy from a branch → Branch: main / (root)**. En un par
    de minutos queda online en
@@ -43,26 +43,24 @@ resumen de lo que hay y lo poco que falta de tu lado.
 1. Entra a `/admin.html`, inicia sesión con tu cuenta admin.
 2. Sube una foto real, pon precio/categoría/talla/estado, toca
    **Generar con IA** (esto es lo que queda bloqueado hasta el punto 1).
-3. Revisa la foto mejorada, las 2 variantes y la descripción — edítalas
-   si hace falta — y toca **Publicar**.
+3. Revisa la foto mejorada y la descripción — edítalas si hace falta —
+   y toca **Publicar**.
 4. Abre `/index.html`, toca la prenda, toca **Reservar por WhatsApp** —
    la marca como "Reservada" y te abre WhatsApp con el mensaje
    prellenado.
 5. En el admin, pestaña **Prendas**, marca **Vendida** o **Liberar**
    según corresponda.
 
-## Nota sobre las "2 imágenes adicionales"
+## Nota sobre la foto mejorada
 
-La IA no tiene otra foto real de la prenda, así que genera una
-*recreación* razonable (estilo flat lay y estilo maniquí/perchero) a
-partir de la foto original — no son ángulos reales adicionales. Para
-prendas donde el detalle importa mucho (una mancha, una costura), sigue
-siendo buena idea sacar tú una segunda foto real.
+La IA solo retoca tu foto (luz, fondo) — no inventa ángulos nuevos ni
+detalles que no estén en la original. El catálogo muestra la foto
+mejorada junto a la original, así el comprador ve ambas.
 
 ## Costos
 
 - Supabase: dentro del free tier ya usado por Launch Control, sin costo
   adicional por Ropero a este volumen.
-- Gemini: texto gratis; imágenes ~US$0.15-0.20 por prenda publicada
+- Gemini: texto gratis; imágenes ~US$0.05-0.07 por prenda publicada
   (ver punto 1 arriba).
 - GitHub Pages + dominio InfinityFree: gratis, igual que tus otras apps.

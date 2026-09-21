@@ -1,8 +1,7 @@
 # Ropero
 
 App web (mobile-first) para vender ropa usada: sacas una foto, pones el precio,
-la IA mejora la foto, genera 2 variantes de presentación y escribe una
-descripción corta. La gente navega el catálogo desde el celular y reserva con
+la IA mejora la foto y escribe una descripción corta. La gente navega el catálogo desde el celular y reserva con
 un botón que abre WhatsApp directo contigo — el trato final lo cierras por
 fuera de la app.
 

@@ -84,9 +84,7 @@ function escapeHtml(str) {
 }
 
 function openDetail(item) {
-  const photos = [item.photo_enhanced, item.photo_variant_1, item.photo_variant_2, item.photo_original].filter(
-    Boolean
-  );
+  const photos = [item.photo_enhanced, item.photo_original].filter(Boolean);
 
   const isAvailable = item.status === "disponible";
   const statusLabel = item.status === "reservada" ? "Reservada" : item.status === "vendida" ? "Vendida" : "";

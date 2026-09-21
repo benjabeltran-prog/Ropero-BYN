@@ -3,11 +3,11 @@
 // ------------------------------------------------------------
 // Recibe la foto de una prenda + datos básicos (precio, categoría,
 // talla, estado) y usa Gemini para:
-//   1) generar una versión "mejorada" de la foto
-//   2) generar 2 variantes de presentación (flat lay y en maniquí)
-//   3) escribir una descripción breve de venta
-// Sube las 4 imágenes a Storage y crea la fila en "items"
-// con estado "borrador" para que la revises antes de publicar.
+//   1) generar una versión "mejorada" de la foto (misma prenda, mejor
+//      luz y fondo — no crea imágenes nuevas, solo retoca la original)
+//   2) escribir una descripción breve de venta
+// Sube las 2 imágenes a Storage y crea la fila en "items" con estado
+// "borrador" para que la revises antes de publicar.
 //
 // Variables de entorno necesarias (se configuran al desplegar,
 // ver SETUP.md):
@@ -160,23 +160,7 @@ Deno.serve(async (req: Request) => {
     );
     const enhancedUrl = await uploadImage(`${itemId}/enhanced.png`, enhanced.data, enhanced.mimeType);
 
-    // 3) Variante 1: estilo flat lay
-    const variant1 = await callGeminiImage(
-      "A partir de esta foto, genera una presentación de la misma prenda en estilo 'flat lay': extendida prolijamente sobre una superficie neutra clara, vista cenital, buena iluminación de estudio, sin agregar objetos ni texto, manteniendo el mismo color, estampado y diseño de la prenda original.",
-      imageBase64,
-      mimeType
-    );
-    const variant1Url = await uploadImage(`${itemId}/variant1.png`, variant1.data, variant1.mimeType);
-
-    // 4) Variante 2: en maniquí / perchero
-    const variant2 = await callGeminiImage(
-      "A partir de esta foto, genera una presentación de la misma prenda puesta en un maniquí o colgada en un perchero neutro, con un fondo desenfocado tipo vitrina de tienda, manteniendo el mismo color, estampado y diseño de la prenda original, sin agregar texto ni logos.",
-      imageBase64,
-      mimeType
-    );
-    const variant2Url = await uploadImage(`${itemId}/variant2.png`, variant2.data, variant2.mimeType);
-
-    // 5) Descripción de venta
+    // 3) Descripción de venta
     const description = await callGeminiDescription(imageBase64, mimeType, {
       price: String(price),
       category,
@@ -198,8 +182,6 @@ Deno.serve(async (req: Request) => {
         status: "borrador",
         photo_original: originalUrl,
         photo_enhanced: enhancedUrl,
-        photo_variant_1: variant1Url,
-        photo_variant_2: variant2Url,
       })
       .select()
       .single();

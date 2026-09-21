@@ -28,8 +28,8 @@ create table if not exists ropero.items (
     check (status in ('borrador', 'disponible', 'reservada', 'vendida')),
   photo_original text,
   photo_enhanced text,
-  photo_variant_1 text,
-  photo_variant_2 text,
+  photo_variant_1 text, -- sin uso por ahora (la función solo genera la foto mejorada)
+  photo_variant_2 text, -- sin uso por ahora (la función solo genera la foto mejorada)
   created_at timestamptz not null default now(),
   reserved_at timestamptz
 );
