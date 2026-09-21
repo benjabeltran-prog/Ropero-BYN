@@ -14,6 +14,19 @@ const money = (n) =>
 const NEW_WINDOW_MS = 4 * 24 * 60 * 60 * 1000; // "Nuevo" mientras tenga menos de 4 días publicada
 const WHATSAPP_ICON = `<svg class="wa-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.4-1.5-.9-.8-1.5-1.8-1.6-2.1-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.3-.5.1-.2 0-.4 0-.5C10 9 9.5 7.7 9.3 7.2c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.5.1-.7.3-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.9.5 3.6 1.5 5.2L2 22l4.9-1.5c1.5.9 3.3 1.4 5.1 1.4 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.7 0-3.3-.5-4.6-1.3l-.3-.2-3.3 1 1-3.2-.2-.3C3.9 14.6 3.3 13 3.3 11.4c0-4.8 3.9-8.6 8.7-8.6s8.7 3.9 8.7 8.6-3.9 8.6-8.7 8.6z"></path></svg>`;
 const SHARE_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"></line><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line></svg>`;
+const CHECK_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.3 10.6 15 16 9.3"></path></svg>`;
+const CLOSE_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg>`;
+
+const EMPTY_ICON_DEFAULT = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6.5a2.5 2.5 0 0 1 5 0"></path><path d="M12 6.5v2"></path><path d="M12 8.5 4.2 13.8a1.7 1.7 0 0 0 1 3.1h13.6a1.7 1.7 0 0 0 1-3.1L12 8.5Z"></path><path d="M6 19.5h12"></path></svg>`;
+const EMPTY_ICON_SEARCH = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
+const EMPTY_ICON_ERROR = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3Z"></path><line x1="12" y1="9.3" x2="12" y2="14"></line><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"></circle></svg>`;
+
+function showEmptyState(icon, title, sub) {
+  emptyState.hidden = false;
+  emptyState.querySelector(".empty-state-icon").innerHTML = icon;
+  emptyState.querySelector(".empty-state-title").textContent = title;
+  emptyState.querySelector(".empty-state-sub").textContent = sub;
+}
 
 let allItems = [];
 let activeCategory = "Todas";
@@ -32,9 +45,7 @@ async function loadItems() {
   if (error) {
     console.error(error);
     grid.innerHTML = "";
-    emptyState.hidden = false;
-    emptyState.querySelector(".empty-state-title").textContent = "No se pudo cargar el catálogo";
-    emptyState.querySelector(".empty-state-sub").textContent = "Intenta de nuevo más tarde.";
+    showEmptyState(EMPTY_ICON_ERROR, "No se pudo cargar el catálogo", "Intenta de nuevo más tarde.");
     return;
   }
 
@@ -116,11 +127,17 @@ function renderGrid() {
   );
 
   grid.innerHTML = "";
-  emptyState.hidden = items.length > 0;
-  if (items.length === 0 && allItems.length > 0) {
-    emptyState.querySelector(".empty-state-icon").textContent = "🔍";
-    emptyState.querySelector(".empty-state-title").textContent = "No hay prendas con ese filtro";
-    emptyState.querySelector(".empty-state-sub").textContent = "Prueba con otra categoría o talla.";
+
+  if (items.length > 0) {
+    emptyState.hidden = true;
+  } else if (allItems.length > 0) {
+    showEmptyState(EMPTY_ICON_SEARCH, "No hay prendas con ese filtro", "Prueba con otra categoría o talla.");
+  } else {
+    showEmptyState(
+      EMPTY_ICON_DEFAULT,
+      "Todavía no hay prendas publicadas",
+      "Vuelve pronto, se sube ropa nueva seguido."
+    );
   }
 
   items.forEach((item) => {
@@ -168,7 +185,7 @@ function openDetail(item) {
     <div class="detail-overlay" id="overlay">
       <div class="detail-sheet">
         <button class="detail-share" id="share-item-btn" aria-label="Compartir esta prenda">${SHARE_ICON}</button>
-        <button class="detail-close" id="close-btn" aria-label="Cerrar">✕</button>
+        <button class="detail-close" id="close-btn" aria-label="Cerrar">${CLOSE_ICON}</button>
         <div class="gallery" id="gallery">
           ${photos.map((src) => `<img src="${src}" alt="${escapeHtml(item.title)}" />`).join("")}
           ${
@@ -288,7 +305,7 @@ async function shareLink(url, title, text) {
   }
   try {
     await navigator.clipboard.writeText(url);
-    showToast("Link copiado 📋");
+    showToast(`${CHECK_ICON} Link copiado`);
   } catch {
     showToast(`Copia este link: <a href="${url}">${url}</a>`);
   }
@@ -296,7 +313,7 @@ async function shareLink(url, title, text) {
 
 function shareCatalog() {
   const url = `${location.origin}${location.pathname}`;
-  shareLink(url, window.APP_CONFIG?.APP_NAME || "Ropero", "Mira mi catálogo de ropa 👗");
+  shareLink(url, window.APP_CONFIG?.APP_NAME || "Ropero", "Mira mi catálogo de ropa");
 }
 
 function shareItem(item) {

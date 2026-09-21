@@ -166,7 +166,7 @@ function openReview(item) {
   reviewRoot.innerHTML = `
     <div class="detail-overlay" id="review-overlay">
       <div class="detail-sheet">
-        <button class="detail-close" id="review-close">✕</button>
+        <button class="detail-close" id="review-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg></button>
         <div class="gallery">
           <img src="${item.photo_enhanced}" alt="foto mejorada" />
           <img src="${item.photo_original}" alt="foto original" />

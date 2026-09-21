@@ -156,7 +156,8 @@ button {
 }
 
 .vp-icon {
-  font-size: 18px;
+  color: var(--accent);
+  flex: none;
 }
 
 /* Filters ------------------------------------------------------ */
@@ -332,8 +333,11 @@ button {
 }
 
 .empty-state-icon {
-  font-size: 40px;
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  margin-bottom: 12px;
 }
 
 .empty-state-title {
@@ -769,7 +773,15 @@ button {
   box-shadow: var(--shadow-hover);
   z-index: 70;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   animation: toast-in 0.2s ease;
+}
+
+.toast svg {
+  flex: none;
 }
 
 @keyframes toast-in {
