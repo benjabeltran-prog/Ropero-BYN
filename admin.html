@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ropero — Admin</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>Ropero</h1>
+        <div class="subtitle">Panel de administración</div>
+      </div>
+      <a class="icon-link" href="index.html">Ver catálogo</a>
+    </header>
+
+    <!-- Login -->
+    <section id="login-view" class="login-box" hidden>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" type="password" autocomplete="current-password" />
+      </div>
+      <div id="login-error" class="status-banner error" hidden></div>
+      <button id="login-btn" class="btn btn-primary">Entrar</button>
+    </section>
+
+    <!-- Admin app -->
+    <div id="admin-view" hidden>
+      <div class="tabs">
+        <button class="tab active" data-tab="new">Nueva prenda</button>
+        <button class="tab" data-tab="items">Prendas</button>
+      </div>
+
+      <!-- Tab: nueva prenda -->
+      <section id="tab-new" class="admin-section">
+        <div class="photo-preview" id="photo-preview">Toca para elegir una foto</div>
+        <input type="file" id="photo-input" accept="image/*" capture="environment" hidden />
+
+        <div class="row-2">
+          <div class="field">
+            <label for="price">Precio (CLP)</label>
+            <input id="price" type="number" inputmode="numeric" placeholder="15000" />
+          </div>
+          <div class="field">
+            <label for="category">Categoría</label>
+            <select id="category">
+              <option value="">—</option>
+              <option>Mujer</option>
+              <option>Hombre</option>
+              <option>Niños</option>
+              <option>Accesorios</option>
+              <option>Calzado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label for="size">Talla</label>
+            <input id="size" type="text" placeholder="M, 38, única…" />
+          </div>
+          <div class="field">
+            <label for="condition">Estado</label>
+            <select id="condition">
+              <option value="">—</option>
+              <option>Nuevo con etiqueta</option>
+              <option>Como nuevo</option>
+              <option>Buen estado</option>
+              <option>Con detalles</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="generate-status" class="status-banner" hidden></div>
+
+        <button id="generate-btn" class="btn btn-primary">Generar con IA</button>
+      </section>
+
+      <!-- Tab: listado -->
+      <section id="tab-items" class="admin-section" hidden>
+        <div id="items-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="review-root"></div>
+
+  <script src="js/config.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
