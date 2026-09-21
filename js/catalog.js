@@ -181,7 +181,9 @@ function itemUrl(item) {
 }
 
 function openDetail(item) {
-  const photos = [item.photo_original, item.photo_enhanced].filter(Boolean);
+  // Una sola foto por prenda: la original que subió el admin (ver nota en
+  // la Edge Function sobre por qué se sacó la versión "mejorada").
+  const photo = item.photo_original || item.photo_enhanced || "";
 
   const isAvailable = item.status === "disponible";
   const statusLabel = item.status === "reservada" ? "Reservada" : item.status === "vendida" ? "Vendida" : "";
@@ -192,12 +194,7 @@ function openDetail(item) {
         <button class="detail-share" id="share-item-btn" aria-label="Compartir esta prenda">${SHARE_ICON}</button>
         <button class="detail-close" id="close-btn" aria-label="Cerrar">${CLOSE_ICON}</button>
         <div class="gallery" id="gallery">
-          ${photos.map((src) => `<img src="${src}" alt="${escapeHtml(item.title)}" />`).join("")}
-          ${
-            photos.length > 1
-              ? `<div class="gallery-dots">${photos.map((_, i) => `<span class="dot${i === 0 ? " active" : ""}"></span>`).join("")}</div>`
-              : ""
-          }
+          <img src="${photo}" alt="${escapeHtml(item.title)}" />
         </div>
         <div class="detail-body">
           ${priceBlockHtml(item, { size: "lg" })}
@@ -228,15 +225,6 @@ function openDetail(item) {
     if (e.target.id === "overlay") closeDetail();
   });
   document.getElementById("share-item-btn").addEventListener("click", () => shareItem(item));
-
-  if (photos.length > 1) {
-    const galleryEl = document.getElementById("gallery");
-    const dots = galleryEl.querySelectorAll(".dot");
-    galleryEl.addEventListener("scroll", () => {
-      const index = Math.round(galleryEl.scrollLeft / galleryEl.clientWidth);
-      dots.forEach((dot, i) => dot.classList.toggle("active", i === index));
-    });
-  }
 
   const reserveBtn = document.getElementById("reserve-btn");
   if (reserveBtn) {

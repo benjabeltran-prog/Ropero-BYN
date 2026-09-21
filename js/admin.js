@@ -182,8 +182,7 @@ function openReview(item) {
       <div class="detail-sheet">
         <button class="detail-close" id="review-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg></button>
         <div class="gallery">
-          <img src="${item.photo_original}" alt="foto original" />
-          <img src="${item.photo_enhanced}" alt="foto con auto-niveles" />
+          <img src="${item.photo_original || item.photo_enhanced || ""}" alt="foto de la prenda" />
         </div>
         <div class="detail-body">
           <div class="status-banner">Revisa el resultado antes de publicarlo en el catálogo.</div>
@@ -285,7 +284,7 @@ function openEdit(item) {
       <div class="detail-sheet">
         <button class="detail-close" id="edit-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg></button>
         <div class="gallery">
-          ${[item.photo_original, item.photo_enhanced].filter(Boolean).map((src) => `<img src="${src}" alt="foto" />`).join("")}
+          <img src="${item.photo_original || item.photo_enhanced || ""}" alt="foto de la prenda" />
         </div>
         <div class="detail-body">
           <div class="status-banner">Editando "${escapeAttr(item.title)}"</div>
