@@ -136,9 +136,18 @@ async function reserveItem(item, btn) {
   btn.disabled = true;
   btn.textContent = "Reservando…";
 
+  // IMPORTANTE: los navegadores (sobre todo Safari/iPhone) solo dejan abrir
+  // una pestaña/redirigir si pasa DENTRO del mismo click del usuario. Si
+  // primero esperamos la respuesta de Supabase (await) y recién ahí
+  // intentamos ir a WhatsApp, ya "se enfrió" el click y el navegador lo
+  // bloquea en silencio — no pasa nada, ni error ni redirect. Por eso acá
+  // abrimos la pestaña YA, vacía, y recién después le ponemos la URL final.
+  const waTab = window.open("", "_blank");
+
   const { data: reserved, error } = await supabase.rpc("reserve_item", { item_id: item.id });
 
   if (error || !reserved) {
+    if (waTab) waTab.close();
     btn.disabled = false;
     btn.textContent = "Reservar por WhatsApp";
     alert(
@@ -153,10 +162,36 @@ async function reserveItem(item, btn) {
   const message = `Hola! Quiero reservar: ${item.title} (${money(item.price)}). Vi la prenda en el catálogo online.`;
   const waNumber = window.APP_CONFIG.WHATSAPP_NUMBER;
   const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
-  window.location.href = url;
+
+  if (waTab) {
+    // Pestaña abierta con éxito: la mandamos a WhatsApp.
+    waTab.location.href = url;
+  } else {
+    // El navegador bloqueó la pestaña nueva: como último intento navegamos
+    // la misma página (puede fallar igual, pero es mejor que nada) y
+    // mostramos un link visible por si el redirect automático no funciona.
+    window.location.href = url;
+  }
+
+  showWhatsAppFallback(url);
 
   closeDetail();
   loadItems();
+}
+
+// Red de seguridad: si por lo que sea el navegador bloqueó el redirect
+// automático, dejamos un aviso con un link que el usuario puede tocar a
+// mano para abrir WhatsApp.
+function showWhatsAppFallback(url) {
+  const existing = document.getElementById("wa-fallback");
+  if (existing) existing.remove();
+
+  const el = document.createElement("div");
+  el.id = "wa-fallback";
+  el.className = "wa-fallback";
+  el.innerHTML = `¿No se abrió WhatsApp? <a href="${url}" target="_blank" rel="noopener">Toca aquí</a>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 8000);
 }
 
 loadItems();

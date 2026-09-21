@@ -492,3 +492,28 @@ button {
   border-bottom-color: var(--accent);
   font-weight: 600;
 }
+
+/* Aviso de respaldo si el navegador bloquea el redirect automático a
+   WhatsApp al reservar (ver reserveItem en js/catalog.js). */
+.wa-fallback {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  max-width: var(--max-width);
+  margin: 0 auto;
+  background: var(--text);
+  color: #fff;
+  font-size: 13.5px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 70;
+  text-align: center;
+}
+
+.wa-fallback a {
+  color: #9be0b8;
+  font-weight: 600;
+  text-decoration: underline;
+}
