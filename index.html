@@ -4,34 +4,77 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Ropero — Catálogo</title>
-  <meta name="description" content="Ropa de segunda mano — reserva por WhatsApp" />
+  <meta name="description" content="Ropa de segunda mano en buen estado — reserva por WhatsApp" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <meta name="theme-color" content="#faf9f7" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@1,500;1,600&family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <div class="app">
     <header class="topbar">
-      <div>
+      <div class="brand">
         <h1 id="app-title">Ropero</h1>
-        <div class="subtitle">Toca una prenda para reservarla</div>
+        <div class="subtitle">Ropa con historia, directo a tu WhatsApp</div>
       </div>
-      <a class="icon-link" href="admin.html">Admin</a>
+      <div class="topbar-actions">
+        <button id="share-catalog-btn" class="icon-btn" aria-label="Compartir catálogo" title="Compartir catálogo">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.6" y1="10.5" x2="15.4" y2="6.5"></line>
+            <line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line>
+          </svg>
+        </button>
+        <a class="icon-btn" href="admin.html" aria-label="Panel de administración" title="Admin">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </a>
+      </div>
     </header>
 
+    <div class="value-props">
+      <div class="value-props-item">
+        <span class="vp-icon" aria-hidden="true">💬</span>
+        <span>Reserva por<br />WhatsApp</span>
+      </div>
+      <div class="value-props-item">
+        <span class="vp-icon" aria-hidden="true">👕</span>
+        <span>Prendas revisadas<br />antes de subir</span>
+      </div>
+      <div class="value-props-item">
+        <span class="vp-icon" aria-hidden="true">🔒</span>
+        <span>Se reserva al<br />instante</span>
+      </div>
+    </div>
+
     <div class="filters" id="filters"></div>
+    <div class="size-filters" id="size-filters"></div>
 
     <main id="grid" class="grid">
       <!-- las tarjetas se insertan por JS -->
     </main>
 
     <div id="empty-state" class="empty-state" hidden>
-      Todavía no hay prendas publicadas.
+      <div class="empty-state-icon" aria-hidden="true">🧺</div>
+      <div class="empty-state-title">Todavía no hay prendas publicadas</div>
+      <div class="empty-state-sub">Vuelve pronto, se sube ropa nueva seguido.</div>
     </div>
   </div>
 
   <div id="detail-root"></div>
+  <div id="toast-root"></div>
 
   <script src="js/config.js"></script>
   <script>
