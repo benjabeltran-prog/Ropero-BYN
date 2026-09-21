@@ -633,8 +633,9 @@ button {
 .field-label-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
   margin-bottom: 5px;
 }
 
@@ -725,12 +726,23 @@ button {
   }
 }
 
+/* Cada prenda del listado admin es una mini-card en dos filas: arriba la
+   foto+info, abajo las acciones a todo el ancho. Con foto+info+botones
+   todos en UNA sola fila (como era antes) los botones no tenían espacio
+   real donde acomodarse apenas se agregaban 3-4 — quedaban apretados o
+   se montaban sobre el nombre/precio en pantallas angostas. */
 .item-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.item-row-main {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
 }
 
 .item-row img {
@@ -739,6 +751,7 @@ button {
   border-radius: 10px;
   object-fit: cover;
   background: var(--surface-2);
+  flex: none;
 }
 
 .item-row .info {
@@ -763,7 +776,11 @@ button {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+}
+
+.item-row .actions .btn {
+  flex: 1 1 auto;
+  min-width: 84px;
 }
 
 .login-box {

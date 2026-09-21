@@ -421,10 +421,12 @@ function rowHtml(item) {
   const photo = item.photo_enhanced || item.photo_original || "";
   return `
     <div class="item-row" id="row-${item.id}">
-      <img src="${photo}" alt="" />
-      <div class="info">
-        <div class="name">${item.title}</div>
-        <div class="sub">${money(item.price)} · ${statusLabel(item.status)}</div>
+      <div class="item-row-main">
+        <img src="${photo}" alt="" />
+        <div class="info">
+          <div class="name">${item.title}</div>
+          <div class="sub">${money(item.price)} · ${statusLabel(item.status)}</div>
+        </div>
       </div>
       <div class="actions">
         ${item.status === "borrador" ? `<button class="btn btn-secondary btn-small" data-action="review">Revisar</button>` : ""}
@@ -432,6 +434,7 @@ function rowHtml(item) {
         ${item.status === "reservada" ? `<button class="btn btn-secondary btn-small" data-action="vendida">Vendida</button>` : ""}
         ${item.status === "reservada" ? `<button class="btn btn-secondary btn-small" data-action="liberar">Liberar</button>` : ""}
         ${item.status === "disponible" ? `<button class="btn btn-secondary btn-small" data-action="vendida">Vendida</button>` : ""}
+        ${item.status === "vendida" ? `<button class="btn btn-secondary btn-small" data-action="reactivar">Publicar de nuevo</button>` : ""}
         <button class="btn btn-danger btn-small" data-action="eliminar">Eliminar</button>
       </div>
     </div>
@@ -451,6 +454,10 @@ async function handleAction(action, item) {
     await supabase.from("items").update({ status: "vendida" }).eq("id", item.id);
   }
   if (action === "liberar") {
+    await supabase.from("items").update({ status: "disponible", reserved_at: null }).eq("id", item.id);
+  }
+  if (action === "reactivar") {
+    // La venta no se concretó: vuelve a quedar disponible en el catálogo.
     await supabase.from("items").update({ status: "disponible", reserved_at: null }).eq("id", item.id);
   }
   if (action === "eliminar") {
