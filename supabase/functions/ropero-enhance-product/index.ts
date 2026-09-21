@@ -58,6 +58,73 @@ function clampByte(v: number) {
   return v < 0 ? 0 : v > 255 ? 255 : v | 0;
 }
 
+// Lee el tag EXIF Orientation (0x0112) directo de los bytes del JPEG.
+// Los celulares guardan la foto "cruda" como la ve el sensor y anotan en
+// este tag cómo hay que rotarla para verla bien — el navegador/celular lo
+// aplica solo al mostrar la foto original, pero `Image.decode()` de
+// imagescript lo ignora: decodifica los píxeles crudos tal cual. Si no
+// corregimos esto antes de re-codificar, la foto "mejorada" pierde esa
+// rotación implícita y queda girada. Devuelve 1 (normal) si no hay tag.
+function readExifOrientation(bytes: Uint8Array): number {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return 1; // no es JPEG
+
+  let offset = 2;
+  while (offset + 4 <= bytes.length) {
+    if (bytes[offset] !== 0xff) break;
+    const marker = bytes[offset + 1];
+    if (marker === 0xd8 || marker === 0xd9) { offset += 2; continue; }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { offset += 2; continue; }
+    const segLength = (bytes[offset + 2] << 8) | bytes[offset + 3];
+    if (marker === 0xe1) {
+      // APP1 — puede contener "Exif\0\0"
+      const segStart = offset + 4;
+      if (
+        bytes[segStart] === 0x45 && bytes[segStart + 1] === 0x78 &&
+        bytes[segStart + 2] === 0x69 && bytes[segStart + 3] === 0x66 &&
+        bytes[segStart + 4] === 0x00 && bytes[segStart + 5] === 0x00
+      ) {
+        const tiffStart = segStart + 6;
+        const little = bytes[tiffStart] === 0x49 && bytes[tiffStart + 1] === 0x49; // "II"
+        const readU16 = (p: number) => little ? bytes[p] | (bytes[p + 1] << 8) : (bytes[p] << 8) | bytes[p + 1];
+        const readU32 = (p: number) => little
+          ? (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0
+          : ((bytes[p] << 24) | (bytes[p + 1] << 16) | (bytes[p + 2] << 8) | bytes[p + 3]) >>> 0;
+
+        const ifdOffset = readU32(tiffStart + 4);
+        const ifdStart = tiffStart + ifdOffset;
+        const entryCount = readU16(ifdStart);
+        for (let i = 0; i < entryCount; i++) {
+          const entryOffset = ifdStart + 2 + i * 12;
+          const tag = readU16(entryOffset);
+          if (tag === 0x0112) {
+            const value = readU16(entryOffset + 8);
+            return value >= 1 && value <= 8 ? value : 1;
+          }
+        }
+      }
+    }
+    if (marker === 0xda) break; // Start of Scan: se acabó el header
+    offset += 2 + segLength;
+  }
+  return 1;
+}
+
+// Aplica la rotación/espejo que le corresponde a cada valor de Orientation
+// (probado contra los 8 valores estándar de EXIF, comparando pixel a pixel
+// contra PIL/ImageOps.exif_transpose como referencia).
+function applyExifOrientation(image: Image, orientation: number) {
+  switch (orientation) {
+    case 2: image.flip("horizontal"); break;
+    case 3: image.rotate(180); break;
+    case 4: image.flip("vertical"); break;
+    case 5: image.rotate(270); image.flip("horizontal"); break;
+    case 6: image.rotate(270); break;
+    case 7: image.rotate(90); image.flip("horizontal"); break;
+    case 8: image.rotate(90); break;
+    default: break; // 1 = normal, nada que hacer
+  }
+}
+
 // "Auto niveles": estira el histograma de cada canal (R, G, B) por
 // separado para que use todo el rango 0-255, recortando un pequeño
 // porcentaje de píxeles extremos (ruido/reflejos) para no distorsionar
@@ -111,7 +178,12 @@ function autoLevels(image: Image, clipPercent = 1) {
 }
 
 async function enhancePhoto(originalBytes: Uint8Array): Promise<Uint8Array> {
+  const orientation = readExifOrientation(originalBytes);
   const image = await Image.decode(originalBytes);
+
+  // Corrige la rotación ANTES de todo lo demás: encodeJPEG no guarda EXIF,
+  // así que si no aplicamos esto acá la corrección se pierde para siempre.
+  applyExifOrientation(image, orientation);
 
   if (image.width > MAX_DIMENSION || image.height > MAX_DIMENSION) {
     if (image.width >= image.height) {
