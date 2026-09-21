@@ -237,6 +237,100 @@ function escapeAttr(str) {
   return (str || "").replace(/"/g, "&quot;");
 }
 
+function selectOptions(options, current) {
+  return (
+    `<option value="">—</option>` +
+    options.map((o) => `<option ${o === current ? "selected" : ""}>${o}</option>`).join("")
+  );
+}
+
+// ---------- Editar prenda ya publicada -------------------------------------
+
+function openEdit(item) {
+  reviewRoot.innerHTML = `
+    <div class="detail-overlay" id="edit-overlay">
+      <div class="detail-sheet">
+        <button class="detail-close" id="edit-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg></button>
+        <div class="gallery">
+          ${[item.photo_enhanced, item.photo_original].filter(Boolean).map((src) => `<img src="${src}" alt="foto" />`).join("")}
+        </div>
+        <div class="detail-body">
+          <div class="status-banner">Editando "${escapeAttr(item.title)}"</div>
+          <div class="field">
+            <label for="edit-title">Título</label>
+            <input id="edit-title" type="text" value="${escapeAttr(item.title)}" />
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="edit-price">Precio (CLP)</label>
+              <input id="edit-price" type="number" inputmode="numeric" value="${item.price}" />
+            </div>
+            <div class="field">
+              <label for="edit-category">Categoría</label>
+              <select id="edit-category">${selectOptions(["Mujer", "Hombre", "Niños", "Accesorios", "Calzado"], item.category)}</select>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="edit-size">Talla</label>
+              <input id="edit-size" type="text" placeholder="M, 38, única…" value="${escapeAttr(item.size || "")}" />
+            </div>
+            <div class="field">
+              <label for="edit-condition">Estado</label>
+              <select id="edit-condition">${selectOptions(["Nuevo con etiqueta", "Como nuevo", "Buen estado", "Con detalles"], item.condition)}</select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="edit-description">Descripción</label>
+            <textarea id="edit-description">${item.description || ""}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="reserve-bar" style="display:flex; gap:10px;">
+      <button class="btn btn-secondary" id="edit-cancel-btn">Cancelar</button>
+      <button class="btn btn-primary" id="edit-save-btn">Guardar cambios</button>
+    </div>
+  `;
+
+  document.getElementById("edit-close").addEventListener("click", closeReview);
+  document.getElementById("edit-cancel-btn").addEventListener("click", closeReview);
+  document.getElementById("edit-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "edit-overlay") closeReview();
+  });
+
+  document.getElementById("edit-save-btn").addEventListener("click", async (e) => {
+    const title = document.getElementById("edit-title").value.trim();
+    const price = Number(document.getElementById("edit-price").value);
+    const category = document.getElementById("edit-category").value;
+    const size = document.getElementById("edit-size").value.trim();
+    const condition = document.getElementById("edit-condition").value;
+    const description = document.getElementById("edit-description").value.trim();
+
+    if (!title || !price) {
+      alert("Completa al menos el título y el precio.");
+      return;
+    }
+
+    e.target.disabled = true;
+    e.target.textContent = "Guardando…";
+
+    const { error } = await supabase
+      .from("items")
+      .update({ title, price, category, size, condition, description })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("No se pudieron guardar los cambios: " + error.message);
+      e.target.disabled = false;
+      e.target.textContent = "Guardar cambios";
+      return;
+    }
+    closeReview();
+    loadItems();
+  });
+}
+
 // ---------- Listado / gestión ---------------------------------------------
 
 async function loadItems() {
@@ -278,6 +372,7 @@ function rowHtml(item) {
       </div>
       <div class="actions">
         ${item.status === "borrador" ? `<button class="btn btn-secondary btn-small" data-action="review">Revisar</button>` : ""}
+        ${item.status !== "borrador" ? `<button class="btn btn-secondary btn-small" data-action="editar">Editar</button>` : ""}
         ${item.status === "reservada" ? `<button class="btn btn-secondary btn-small" data-action="vendida">Vendida</button>` : ""}
         ${item.status === "reservada" ? `<button class="btn btn-secondary btn-small" data-action="liberar">Liberar</button>` : ""}
         ${item.status === "disponible" ? `<button class="btn btn-secondary btn-small" data-action="vendida">Vendida</button>` : ""}
@@ -290,6 +385,10 @@ function rowHtml(item) {
 async function handleAction(action, item) {
   if (action === "review") {
     openReview(item);
+    return;
+  }
+  if (action === "editar") {
+    openEdit(item);
     return;
   }
   if (action === "vendida") {
