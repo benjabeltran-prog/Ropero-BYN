@@ -776,6 +776,13 @@ button {
   color: var(--danger);
 }
 
+.settings-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: -6px 0 16px;
+}
+
 .spinner {
   display: inline-block;
   width: 14px;

@@ -60,6 +60,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="new">Nueva prenda</button>
         <button class="tab" data-tab="items">Prendas</button>
+        <button class="tab" data-tab="settings">Ajustes</button>
       </div>
 
       <!-- Tab: nueva prenda -->
@@ -115,6 +116,20 @@
       <!-- Tab: listado -->
       <section id="tab-items" class="admin-section" hidden>
         <div id="items-list"></div>
+      </section>
+
+      <!-- Tab: ajustes -->
+      <section id="tab-settings" class="admin-section" hidden>
+        <div class="field">
+          <label for="settings-whatsapp">Número de WhatsApp</label>
+          <input id="settings-whatsapp" type="tel" inputmode="numeric" placeholder="Ej: 56912345678" />
+        </div>
+        <p class="settings-hint">
+          Formato internacional, solo dígitos (sin +, espacios ni guiones). Ejemplo Chile: 56912345678.
+          A este número llegan los mensajes de "Reservar por WhatsApp" del catálogo.
+        </p>
+        <div id="settings-status" class="status-banner" hidden></div>
+        <button id="settings-save-btn" class="btn btn-primary">Guardar</button>
       </section>
     </div>
   </div>

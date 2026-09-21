@@ -221,7 +221,9 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     document.getElementById("tab-new").hidden = tab.dataset.tab !== "new";
     document.getElementById("tab-items").hidden = tab.dataset.tab !== "items";
+    document.getElementById("tab-settings").hidden = tab.dataset.tab !== "settings";
     if (tab.dataset.tab === "items") loadItems();
+    if (tab.dataset.tab === "settings") loadSettingsView();
   });
 });
 
@@ -625,6 +627,58 @@ async function handleAction(action, item) {
   }
   loadItems();
 }
+
+// ---------- Ajustes ---------------------------------------------------------
+// Configuración de la app editable sin tocar código (fila única en
+// ropero.settings). Por ahora solo el número de WhatsApp del botón
+// "Reservar por WhatsApp" del catálogo.
+
+const settingsWhatsappInput = document.getElementById("settings-whatsapp");
+const settingsStatus = document.getElementById("settings-status");
+const settingsSaveBtn = document.getElementById("settings-save-btn");
+
+function showSettingsStatus(text, isError) {
+  settingsStatus.hidden = false;
+  settingsStatus.textContent = text;
+  settingsStatus.classList.toggle("error", !!isError);
+}
+
+async function loadSettingsView() {
+  settingsWhatsappInput.value = "";
+  showSettingsStatus("Cargando…", false);
+  const { data, error } = await supabase.from("settings").select("whatsapp_number").eq("id", 1).maybeSingle();
+  if (error) {
+    showSettingsStatus("No se pudo cargar la configuración: " + error.message, true);
+    return;
+  }
+  settingsWhatsappInput.value = data?.whatsapp_number || "";
+  settingsStatus.hidden = true;
+}
+
+settingsSaveBtn.addEventListener("click", async () => {
+  const whatsapp_number = settingsWhatsappInput.value.trim();
+  if (!/^\d{8,15}$/.test(whatsapp_number)) {
+    showSettingsStatus("Ingresa un número válido: solo dígitos, formato internacional (ej: 56912345678).", true);
+    return;
+  }
+
+  settingsSaveBtn.disabled = true;
+  settingsSaveBtn.textContent = "Guardando…";
+
+  const { error } = await supabase
+    .from("settings")
+    .update({ whatsapp_number, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+
+  settingsSaveBtn.disabled = false;
+  settingsSaveBtn.textContent = "Guardar";
+
+  if (error) {
+    showSettingsStatus("No se pudo guardar: " + error.message, true);
+    return;
+  }
+  showSettingsStatus("Listo, se guardó el número.", false);
+});
 
 // ---------- Init -----------------------------------------------------------
 

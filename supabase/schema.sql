@@ -107,6 +107,50 @@ $$;
 
 grant execute on function ropero.reserve_item(uuid) to anon, authenticated;
 
+-- 3.1) Configuración editable desde el admin (ej: número de WhatsApp) -------
+-- Una sola fila (id fijo = 1) con los valores que el admin puede cambiar
+-- sin tener que tocar código ni volver a desplegar nada.
+create table if not exists ropero.settings (
+  id int primary key default 1,
+  whatsapp_number text,
+  updated_at timestamptz not null default now(),
+  constraint settings_singleton check (id = 1)
+);
+
+insert into ropero.settings (id, whatsapp_number)
+values (1, '56966574792')
+on conflict (id) do nothing;
+
+comment on table ropero.settings is
+  'Configuración de Ropero editable desde el admin (fila única, id=1). whatsapp_number: número al que apunta el botón "Reservar por WhatsApp" del catálogo.';
+
+grant select on ropero.settings to anon;
+grant select, update on ropero.settings to authenticated;
+grant select, update on ropero.settings to service_role;
+
+alter table ropero.settings enable row level security;
+
+-- Cualquier visitante puede leerlo (el catálogo público arma el link de
+-- WhatsApp con este número), pero solo tu cuenta admin puede cambiarlo.
+drop policy if exists "public_read_settings" on ropero.settings;
+create policy "public_read_settings"
+  on ropero.settings for select
+  to anon
+  using (true);
+
+drop policy if exists "admin_read_settings" on ropero.settings;
+create policy "admin_read_settings"
+  on ropero.settings for select
+  to authenticated
+  using (auth.uid() = '4f481729-bef5-4316-9e9f-5685fa718428');
+
+drop policy if exists "admin_update_settings" on ropero.settings;
+create policy "admin_update_settings"
+  on ropero.settings for update
+  to authenticated
+  using (auth.uid() = '4f481729-bef5-4316-9e9f-5685fa718428')
+  with check (auth.uid() = '4f481729-bef5-4316-9e9f-5685fa718428');
+
 -- 4) Storage: bucket público para las fotos ----------------------------------
 insert into storage.buckets (id, name, public)
 values ('ropero-photos', 'ropero-photos', true)

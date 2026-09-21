@@ -31,6 +31,19 @@ let allItems = [];
 let activeCategory = "Todas";
 let sharedItemHandled = false;
 
+// Número de WhatsApp al que apunta "Reservar por WhatsApp". Se puede
+// cambiar desde el admin (pestaña Ajustes) sin tocar código — se guarda
+// en la tabla ropero.settings. window.APP_CONFIG.WHATSAPP_NUMBER queda
+// como respaldo por si esa fila todavía no existe o falla la carga.
+let whatsappNumber = window.APP_CONFIG?.WHATSAPP_NUMBER || "";
+
+async function loadSettings() {
+  const { data, error } = await supabase.from("settings").select("whatsapp_number").eq("id", 1).maybeSingle();
+  if (!error && data?.whatsapp_number) {
+    whatsappNumber = data.whatsapp_number;
+  }
+}
+
 renderSkeleton();
 
 async function loadItems() {
@@ -303,7 +316,7 @@ async function reserveItem(item, btn) {
   }
 
   const message = `Hola! Quiero reservar: ${item.title} (${money(item.price)}). Vi la prenda en el catálogo online.`;
-  const waNumber = window.APP_CONFIG.WHATSAPP_NUMBER;
+  const waNumber = whatsappNumber;
   const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
 
   if (waTab) {
@@ -385,6 +398,7 @@ function maybeOpenSharedItem() {
   }
 }
 
+loadSettings();
 loadItems();
 
 // Refresca cada 30s por si alguien más reserva mientras estás mirando el catálogo
