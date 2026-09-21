@@ -3,7 +3,6 @@ import { supabase } from "./supabaseClient.js";
 const grid = document.getElementById("grid");
 const emptyState = document.getElementById("empty-state");
 const filtersEl = document.getElementById("filters");
-const sizeFiltersEl = document.getElementById("size-filters");
 const detailRoot = document.getElementById("detail-root");
 const toastRoot = document.getElementById("toast-root");
 const shareCatalogBtn = document.getElementById("share-catalog-btn");
@@ -30,7 +29,6 @@ function showEmptyState(icon, title, sub) {
 
 let allItems = [];
 let activeCategory = "Todas";
-let activeSize = "Todas";
 let sharedItemHandled = false;
 
 renderSkeleton();
@@ -51,7 +49,6 @@ async function loadItems() {
 
   allItems = data || [];
   renderFilters();
-  renderSizeFilters();
   renderGrid();
   maybeOpenSharedItem();
 }
@@ -91,28 +88,6 @@ function renderFilters() {
   });
 }
 
-function renderSizeFilters() {
-  const sizes = ["Todas", ...new Set(allItems.map((i) => i.size).filter(Boolean))];
-  sizeFiltersEl.innerHTML = "";
-  if (sizes.length <= 2) {
-    sizeFiltersEl.hidden = true;
-    return;
-  }
-  sizeFiltersEl.hidden = false;
-  sizes.forEach((size) => {
-    const btn = document.createElement("button");
-    btn.className = "size-chip" + (size === activeSize ? " active" : "");
-    btn.textContent = size === "Todas" ? "Todas" : size;
-    btn.title = size === "Todas" ? "Todas las tallas" : `Talla ${size}`;
-    btn.addEventListener("click", () => {
-      activeSize = size;
-      renderSizeFilters();
-      renderGrid();
-    });
-    sizeFiltersEl.appendChild(btn);
-  });
-}
-
 function isNew(item) {
   if (item.status !== "disponible") return false;
   const created = new Date(item.created_at).getTime();
@@ -120,18 +95,14 @@ function isNew(item) {
 }
 
 function renderGrid() {
-  const items = allItems.filter(
-    (i) =>
-      (activeCategory === "Todas" || i.category === activeCategory) &&
-      (activeSize === "Todas" || i.size === activeSize)
-  );
+  const items = allItems.filter((i) => activeCategory === "Todas" || i.category === activeCategory);
 
   grid.innerHTML = "";
 
   if (items.length > 0) {
     emptyState.hidden = true;
   } else if (allItems.length > 0) {
-    showEmptyState(EMPTY_ICON_SEARCH, "No hay prendas con ese filtro", "Prueba con otra categoría o talla.");
+    showEmptyState(EMPTY_ICON_SEARCH, "No hay prendas con ese filtro", "Prueba con otra categoría.");
   } else {
     showEmptyState(
       EMPTY_ICON_DEFAULT,

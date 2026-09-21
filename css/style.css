@@ -165,7 +165,7 @@ button {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 14px 16px 6px;
+  padding: 14px 16px 10px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -188,41 +188,6 @@ button {
 }
 
 .filter-chip.active {
-  background: var(--text);
-  border-color: var(--text);
-  color: #fff;
-}
-
-.size-filters {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px 16px 10px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.size-filters::-webkit-scrollbar {
-  display: none;
-}
-
-.size-chip {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.size-chip.active {
   background: var(--text);
   border-color: var(--text);
   color: #fff;
