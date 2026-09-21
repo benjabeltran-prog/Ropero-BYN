@@ -223,6 +223,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.getElementById("tab-items").hidden = tab.dataset.tab !== "items";
     document.getElementById("tab-dashboard").hidden = tab.dataset.tab !== "dashboard";
     document.getElementById("tab-settings").hidden = tab.dataset.tab !== "settings";
+    if (tab.dataset.tab !== "dashboard") stopPresencePolling();
     if (tab.dataset.tab === "items") loadItems();
     if (tab.dataset.tab === "dashboard") loadDashboard();
     if (tab.dataset.tab === "settings") loadSettingsView();
@@ -642,8 +643,56 @@ async function handleAction(action, item) {
 
 const dashboardRoot = document.getElementById("dashboard-root");
 
+// "Navegando ahora": cuenta heartbeats recientes de ropero.presence (ver
+// heartbeat() en el catálogo). Una sesión se considera activa si mandó un
+// heartbeat en el último minuto (el catálogo manda uno cada 20s).
+const ACTIVE_WINDOW_MS = 60 * 1000;
+const ACTIVE_POLL_MS = 15 * 1000;
+let presencePollTimer = null;
+
 function daysBetween(a, b) {
   return (new Date(b).getTime() - new Date(a).getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function liveNowHtml(count) {
+  return `
+    <div class="dash-live">
+      <span class="dash-live-dot" aria-hidden="true"></span>
+      <span class="dash-live-value" id="dash-live-value">${count === null ? "—" : count}</span>
+      <span class="dash-live-label">navegando el catálogo ahora</span>
+    </div>
+  `;
+}
+
+async function fetchActiveNow() {
+  const cutoff = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
+  const { count, error } = await supabase
+    .from("presence")
+    .select("session_id", { count: "exact", head: true })
+    .gte("last_seen", cutoff);
+  if (error) {
+    console.error(error);
+    return null;
+  }
+  return count ?? 0;
+}
+
+async function refreshActiveNow() {
+  const count = await fetchActiveNow();
+  const valueEl = document.getElementById("dash-live-value");
+  if (valueEl) valueEl.textContent = count === null ? "—" : count;
+}
+
+function stopPresencePolling() {
+  if (presencePollTimer) {
+    clearInterval(presencePollTimer);
+    presencePollTimer = null;
+  }
+}
+
+function startPresencePolling() {
+  stopPresencePolling();
+  presencePollTimer = setInterval(refreshActiveNow, ACTIVE_POLL_MS);
 }
 
 function statTileHtml(value, label) {
@@ -719,6 +768,7 @@ async function loadDashboard() {
   });
 
   dashboardRoot.innerHTML = `
+    ${liveNowHtml(null)}
     <div class="dash-grid">
       ${statTileHtml(active.length, "Prendas activas")}
       ${statTileHtml(money(activeValue), "Valor en catálogo")}
@@ -730,6 +780,9 @@ async function loadDashboard() {
     <div class="dash-section-title">Vendidas por categoría</div>
     ${categoryBarsHtml(categoryCounts)}
   `;
+
+  refreshActiveNow();
+  startPresencePolling();
 }
 
 // ---------- Ajustes ---------------------------------------------------------

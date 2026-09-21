@@ -216,3 +216,52 @@ create policy "ropero_admin_delete_photos"
 -- Nota: la Edge Function "ropero-enhance-product" usa la service_role key,
 -- que salta el RLS y las políticas de Storage automáticamente — no necesita
 -- estar autenticada como usuario para subir fotos ni insertar filas.
+
+-- 5) Presencia anónima (para el dashboard: "cuánta gente navega ahora") -----
+-- Cada pestaña del catálogo público manda un "heartbeat" cada ~20s con un id
+-- random generado en el navegador (sessionStorage). No guarda IP, user-agent
+-- ni nada identificable — solo ese id random y la hora del último heartbeat.
+-- El admin cuenta cuántas filas tienen un heartbeat reciente.
+create table if not exists ropero.presence (
+  session_id text primary key,
+  last_seen timestamptz not null default now()
+);
+
+comment on table ropero.presence is
+  'Heartbeats anónimos del catálogo público (solo para el conteo "navegando ahora" del dashboard). session_id es un id random por pestaña, no identifica a la persona.';
+
+grant select, insert, update, delete on ropero.presence to service_role;
+grant select on ropero.presence to authenticated;
+
+alter table ropero.presence enable row level security;
+
+-- Nadie escribe esta tabla directo: todo pasa por ropero.heartbeat()
+-- (security definer), así el visitante anónimo no necesita ningún grant
+-- de insert/update sobre la tabla ni puede leer cuánta gente más hay.
+drop policy if exists "admin_read_presence" on ropero.presence;
+create policy "admin_read_presence"
+  on ropero.presence for select
+  to authenticated
+  using (auth.uid() = '4f481729-bef5-4316-9e9f-5685fa718428');
+
+-- 5.1) Registrar un heartbeat + limpiar los viejos ---------------------------
+-- security definer para poder escribir aunque quien llama sea anónimo (igual
+-- que reserve_item/release_expired_reservations). De paso borra heartbeats
+-- de más de 10 minutos, así la tabla no crece sin límite y no hace falta un
+-- cron aparte.
+create or replace function ropero.heartbeat(p_session_id text)
+returns void
+language plpgsql
+security definer
+set search_path = ropero
+as $$
+begin
+  insert into ropero.presence (session_id, last_seen)
+  values (p_session_id, now())
+  on conflict (session_id) do update set last_seen = now();
+
+  delete from ropero.presence where last_seen < now() - interval '10 minutes';
+end;
+$$;
+
+grant execute on function ropero.heartbeat(text) to anon, authenticated;

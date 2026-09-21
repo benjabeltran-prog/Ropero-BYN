@@ -597,6 +597,36 @@ function maybeOpenSharedItem() {
   }
 }
 
+// ---------- Presencia anónima (para "navegando ahora" en el dashboard) -----
+// Un id random por pestaña (sessionStorage, no identifica a la persona) que
+// manda un heartbeat cada 20s; el admin cuenta cuántos hay recientes. Si
+// falla (sin internet, función aún no desplegada, etc.) no interrumpe nada:
+// el catálogo funciona igual, solo no suma a ese conteo.
+function getPresenceSessionId() {
+  const FALLBACK = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    let id = sessionStorage.getItem("ropero_session_id");
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : FALLBACK();
+      sessionStorage.setItem("ropero_session_id", id);
+    }
+    return id;
+  } catch {
+    return FALLBACK();
+  }
+}
+
+async function sendHeartbeat() {
+  try {
+    await supabase.rpc("heartbeat", { p_session_id: getPresenceSessionId() });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+sendHeartbeat();
+setInterval(sendHeartbeat, 20000);
+
 loadSettings();
 loadItems();
 
