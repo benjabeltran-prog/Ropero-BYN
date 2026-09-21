@@ -152,9 +152,11 @@ function renderGrid() {
         : isNew(item)
         ? '<span class="badge new">Nuevo</span>'
         : "";
+    const discountBadge = `<span class="badge discount">-${discountInfo(item).pct}%</span>`;
     card.innerHTML = `
       <div class="photo-wrap">
         ${badge}
+        ${discountBadge}
         <img src="${item.photo_enhanced || item.photo_original || ""}" alt="${escapeHtml(item.title)}" loading="lazy" />
       </div>
       <div class="info">

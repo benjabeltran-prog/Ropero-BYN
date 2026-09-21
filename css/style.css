@@ -81,10 +81,13 @@ button {
 }
 
 .brand {
+  min-width: 0;
+}
+
+.brand-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 0;
+  gap: 6px;
 }
 
 .brand-mark {
@@ -92,15 +95,11 @@ button {
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   background: var(--accent-soft);
   color: var(--accent);
-}
-
-.brand-text {
-  min-width: 0;
 }
 
 .topbar h1 {
@@ -336,6 +335,19 @@ button {
 .badge.new {
   background: var(--new-soft);
   color: var(--new);
+}
+
+.badge.discount {
+  left: auto;
+  right: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* El % de descuento ya se muestra como badge sobre la foto (arriba),
+   así que en la card del catálogo no se repite junto al precio. */
+.card .discount-pct {
+  display: none;
 }
 
 .badge.reservada {
