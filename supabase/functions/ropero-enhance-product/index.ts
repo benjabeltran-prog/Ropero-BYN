@@ -1,11 +1,13 @@
 // ============================================================
-// Edge Function: enhance-product
+// Edge Function: ropero-enhance-product
 // ------------------------------------------------------------
 // Recibe la foto de una prenda + datos básicos (precio, categoría,
-// talla, estado) y usa Gemini para:
-//   1) generar una versión "mejorada" de la foto (misma prenda, mejor
-//      luz y fondo — no crea imágenes nuevas, solo retoca la original)
-//   2) escribir una descripción breve de venta
+// talla, estado) y:
+//   1) mejora la foto con auto-corrección de nivel/contraste por canal
+//      (procesamiento de imagen clásico, GRATIS — no es IA generativa,
+//      así que no inventa nada: solo estira el rango de luz y color de
+//      tu foto real, igual que un "auto niveles" de Photoshop/GIMP)
+//   2) escribe una descripción breve de venta con Gemini (texto, gratis)
 // Sube las 2 imágenes a Storage y crea la fila en "items" con estado
 // "borrador" para que la revises antes de publicar.
 //
@@ -17,14 +19,15 @@
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Image } from "jsr:@matmen/imagescript@1.3.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const BUCKET = "ropero-photos";
 
-const IMAGE_MODEL = "gemini-3.1-flash-image"; // "Nano Banana 2"
-const TEXT_MODEL = "gemini-flash-latest"; // alias siempre apuntando al Flash vigente
+const TEXT_MODEL = "gemini-flash-lite-latest"; // alias siempre apuntando al Flash-Lite vigente
+const MAX_DIMENSION = 1600; // ancho/alto máximo de la foto mejorada
 
 // Ropero comparte este proyecto Supabase con Launch Control: todo lo de
 // Ropero vive en el schema "ropero" para no mezclarse con sus tablas.
@@ -44,38 +47,83 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function callGeminiImage(promptText: string, imageBase64: string, mimeType: string) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { inline_data: { mime_type: mimeType, data: imageBase64 } },
-              { text: promptText },
-            ],
-          },
-        ],
-      }),
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function clampByte(v: number) {
+  return v < 0 ? 0 : v > 255 ? 255 : v | 0;
+}
+
+// "Auto niveles": estira el histograma de cada canal (R, G, B) por
+// separado para que use todo el rango 0-255, recortando un pequeño
+// porcentaje de píxeles extremos (ruido/reflejos) para no distorsionar
+// el resultado. Es el mismo tipo de corrección automática que trae
+// cualquier editor de fotos — no genera contenido nuevo.
+function autoLevels(image: Image, clipPercent = 1) {
+  const { bitmap } = image;
+  const totalPixels = image.width * image.height;
+  const clip = Math.floor((totalPixels * clipPercent) / 100);
+
+  const histR = new Uint32Array(256);
+  const histG = new Uint32Array(256);
+  const histB = new Uint32Array(256);
+
+  for (let i = 0; i < bitmap.length; i += 4) {
+    histR[bitmap[i]]++;
+    histG[bitmap[i + 1]]++;
+    histB[bitmap[i + 2]]++;
+  }
+
+  function bounds(hist: Uint32Array): [number, number] {
+    let lo = 0;
+    let acc = 0;
+    for (; lo < 255; lo++) {
+      acc += hist[lo];
+      if (acc > clip) break;
     }
-  );
-  if (!res.ok) {
-    throw new Error(`Gemini (imagen) devolvió ${res.status}: ${await res.text()}`);
+    let hi = 255;
+    acc = 0;
+    for (; hi > 0; hi--) {
+      acc += hist[hi];
+      if (acc > clip) break;
+    }
+    if (hi <= lo) return [0, 255];
+    return [lo, hi];
   }
-  const responseJson = await res.json();
-  const parts = responseJson?.candidates?.[0]?.content?.parts ?? [];
-  // deno-lint-ignore no-explicit-any
-  const imagePart = parts.find((p: any) => p.inlineData || p.inline_data);
-  const data = imagePart?.inlineData?.data ?? imagePart?.inline_data?.data;
-  const outMimeType =
-    imagePart?.inlineData?.mimeType ?? imagePart?.inline_data?.mime_type ?? "image/png";
-  if (!data) {
-    throw new Error("Gemini no devolvió una imagen para este paso");
+
+  const [rLo, rHi] = bounds(histR);
+  const [gLo, gHi] = bounds(histG);
+  const [bLo, bHi] = bounds(histB);
+
+  const rScale = 255 / Math.max(1, rHi - rLo);
+  const gScale = 255 / Math.max(1, gHi - gLo);
+  const bScale = 255 / Math.max(1, bHi - bLo);
+
+  for (let i = 0; i < bitmap.length; i += 4) {
+    bitmap[i] = clampByte((bitmap[i] - rLo) * rScale);
+    bitmap[i + 1] = clampByte((bitmap[i + 1] - gLo) * gScale);
+    bitmap[i + 2] = clampByte((bitmap[i + 2] - bLo) * bScale);
   }
-  return { data, mimeType: outMimeType };
+}
+
+async function enhancePhoto(originalBytes: Uint8Array): Promise<Uint8Array> {
+  const image = await Image.decode(originalBytes);
+
+  if (image.width > MAX_DIMENSION || image.height > MAX_DIMENSION) {
+    if (image.width >= image.height) {
+      image.resize(MAX_DIMENSION, Image.RESIZE_AUTO);
+    } else {
+      image.resize(Image.RESIZE_AUTO, MAX_DIMENSION);
+    }
+  }
+
+  autoLevels(image, 1);
+
+  return await image.encodeJPEG(88);
 }
 
 async function callGeminiDescription(
@@ -117,11 +165,7 @@ No inventes marca ni materiales que no se vean claramente en la foto. No uses em
   return text.trim();
 }
 
-async function uploadImage(path: string, base64: string, mimeType: string) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
+async function uploadImage(path: string, bytes: Uint8Array, mimeType: string) {
   const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
     contentType: mimeType,
     upsert: true,
@@ -148,19 +192,16 @@ Deno.serve(async (req: Request) => {
 
     const itemId = crypto.randomUUID();
     const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const originalBytes = base64ToBytes(imageBase64);
 
     // 1) Foto original tal cual la subió el admin
-    const originalUrl = await uploadImage(`${itemId}/original.${ext}`, imageBase64, mimeType);
+    const originalUrl = await uploadImage(`${itemId}/original.${ext}`, originalBytes, mimeType);
 
-    // 2) Foto "mejorada": misma prenda, mejor luz y fondo
-    const enhanced = await callGeminiImage(
-      "Mejora esta foto de una prenda de ropa para un catálogo de venta online: corrige la iluminación y el balance de color, deja un fondo limpio y neutro (blanco o gris claro), sin recortar ni deformar la prenda, sin agregar logos ni texto, sin inventar detalles que no estén en la foto original.",
-      imageBase64,
-      mimeType
-    );
-    const enhancedUrl = await uploadImage(`${itemId}/enhanced.png`, enhanced.data, enhanced.mimeType);
+    // 2) Foto "mejorada": auto-corrección de niveles/contraste (gratis, sin IA)
+    const enhancedBytes = await enhancePhoto(originalBytes);
+    const enhancedUrl = await uploadImage(`${itemId}/enhanced.jpg`, enhancedBytes, "image/jpeg");
 
-    // 3) Descripción de venta
+    // 3) Descripción de venta (Gemini, texto — gratis)
     const description = await callGeminiDescription(imageBase64, mimeType, {
       price: String(price),
       category,
@@ -168,7 +209,7 @@ Deno.serve(async (req: Request) => {
       condition,
     });
 
-    // 6) Guardar como borrador para que lo revises antes de publicar
+    // 4) Guardar como borrador para que lo revises antes de publicar
     const { data: item, error: insertError } = await supabase
       .from("items")
       .insert({
@@ -191,7 +232,21 @@ Deno.serve(async (req: Request) => {
     return json({ item });
   } catch (err) {
     console.error(err);
-    const message = err instanceof Error ? err.message : "Error desconocido";
+    // Los errores de supabase-js (Postgrest/Storage) no siempre son
+    // instancias de Error, así que probamos varias formas de sacarles
+    // un mensaje legible antes de rendirnos.
+    // deno-lint-ignore no-explicit-any
+    const anyErr = err as any;
+    const message =
+      (typeof anyErr?.message === "string" && anyErr.message) ||
+      (typeof anyErr === "string" && anyErr) ||
+      (() => {
+        try {
+          return JSON.stringify(anyErr);
+        } catch {
+          return String(anyErr);
+        }
+      })();
     return json({ error: message }, 500);
   }
 });

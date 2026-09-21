@@ -12,5 +12,6 @@ fuera de la app.
 
 Stack: HTML/CSS/JS sin build step, Supabase (base de datos + auth + storage +
 edge functions, mismo proyecto que Launch Control en un schema separado
-`ropero`) y Gemini (Nano Banana 2) para las fotos y la descripción — mismo
-patrón que Launch Control y Fambase.
+`ropero`), auto-corrección de imagen local (gratis) para las fotos y
+Gemini (texto, gratis) para la descripción — mismo patrón que Launch
+Control y Fambase.

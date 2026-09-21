@@ -13,7 +13,7 @@
 --   4f481729-bef5-4316-9e9f-5685fa718428
 
 create schema if not exists ropero;
-grant usage on schema ropero to anon, authenticated;
+grant usage on schema ropero to anon, authenticated, service_role;
 
 -- 1) Tabla principal de prendas -------------------------------------------
 create table if not exists ropero.items (
@@ -40,6 +40,9 @@ comment on column ropero.items.status is
 
 grant select on ropero.items to anon;
 grant select, insert, update, delete on ropero.items to authenticated;
+-- La Edge Function usa la service_role key: necesita permiso explícito
+-- de Postgres sobre el schema y la tabla (aparte de saltarse el RLS).
+grant select, insert, update, delete on ropero.items to service_role;
 
 -- 2) Row Level Security -----------------------------------------------------
 alter table ropero.items enable row level security;
