@@ -94,6 +94,38 @@ function isNew(item) {
   return Number.isFinite(created) && Date.now() - created < NEW_WINDOW_MS;
 }
 
+// Hash simple y estable a partir del id de la prenda: el mismo id siempre
+// da el mismo número, así el % de descuento de cada prenda no cambia entre
+// recargas, pero es distinto de una prenda a otra (no se ve "clonado").
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+// Precio "antes" tachado + % de descuento, distinto por prenda pero
+// siempre entre 50% y 70%. Se calcula a partir del precio real (lo que
+// efectivamente se cobra), nunca al revés.
+function discountInfo(item) {
+  const pct = 50 + (hashString(item.id) % 21); // 50–70 inclusive
+  const rawOriginal = item.price / (1 - pct / 100);
+  const original = Math.round(rawOriginal / 500) * 500; // redondeado a $500 más cercano
+  return { pct, original };
+}
+
+function priceBlockHtml(item, { size = "" } = {}) {
+  const { pct, original } = discountInfo(item);
+  return `
+    <div class="price-row${size === "lg" ? " lg" : ""}">
+      <span class="price">${money(item.price)}</span>
+      <span class="discount-pct">-${pct}%</span>
+    </div>
+    <div class="price-original${size === "lg" ? " lg" : ""}">${money(original)}</div>
+  `;
+}
+
 function renderGrid() {
   const items = allItems.filter((i) => activeCategory === "Todas" || i.category === activeCategory);
 
@@ -126,7 +158,7 @@ function renderGrid() {
         <img src="${item.photo_enhanced || item.photo_original || ""}" alt="${escapeHtml(item.title)}" loading="lazy" />
       </div>
       <div class="info">
-        <div class="price">${money(item.price)}</div>
+        ${priceBlockHtml(item)}
         <div class="title">${escapeHtml(item.title)}</div>
       </div>
     `;
@@ -166,7 +198,7 @@ function openDetail(item) {
           }
         </div>
         <div class="detail-body">
-          <div class="price">${money(item.price)}</div>
+          ${priceBlockHtml(item, { size: "lg" })}
           <div class="meta">
             ${item.category ? `<span class="tag">${escapeHtml(item.category)}</span>` : ""}
             ${item.size ? `<span class="tag">Talla ${escapeHtml(item.size)}</span>` : ""}
@@ -175,6 +207,8 @@ function openDetail(item) {
           </div>
           ${item.description ? `<div class="description-label">Descripción</div>` : ""}
           <p class="description">${escapeHtml(item.description || "")}</p>
+          <div class="description-label">Entrega</div>
+          <p class="description">La entrega se coordina directo por WhatsApp una vez confirmada la reserva.</p>
         </div>
       </div>
     </div>

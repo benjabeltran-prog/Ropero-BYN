@@ -198,17 +198,18 @@ async function enhancePhoto(originalBytes: Uint8Array): Promise<Uint8Array> {
   return await image.encodeJPEG(88);
 }
 
-async function callGeminiDescription(
-  imageBase64: string,
-  mimeType: string,
-  meta: { price: string; category?: string; size?: string; condition?: string }
-) {
-  const prompt = `Escribe una descripción breve (2 a 3 frases, español de Chile, tono cercano y honesto) para vender esta prenda de segunda mano en un catálogo online.
-Categoría: ${meta.category || "no especificada"}
-Talla: ${meta.size || "no especificada"}
-Estado: ${meta.condition || "no especificado"}
-Precio: $${meta.price} CLP
-No inventes marca ni materiales que no se vean claramente en la foto. No uses emojis. No repitas el precio en el texto.`;
+// Le pedimos a Gemini SOLO lo que no podemos saber sin mirar la foto: marca
+// (si hay una etiqueta o logo visible), material a simple vista, y color.
+// Talla y estado NO se le piden al modelo — ya los escribió el admin al
+// subir la prenda, así que se usan tal cual (más confiable que hacer que
+// la IA los adivine de nuevo).
+async function callGeminiVisualFields(imageBase64: string, mimeType: string) {
+  const prompt = `Mira la foto de esta prenda de segunda mano y responde SOLO con estas 3 líneas, sin texto adicional antes ni después, sin emojis y sin frases de venta:
+Marca: <marca si se ve con claridad en una etiqueta, logo o estampado; si no es identificable escribe "No especificada">
+Material: <material más probable a simple vista, por ejemplo algodón, poliéster, denim, lana, cuero sintético; si no es identificable escribe "No especificado">
+Color: <color o colores principales de la prenda>
+
+Responde exactamente en ese formato, una etiqueta por línea, sin agregar nada más.`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
@@ -235,6 +236,36 @@ No inventes marca ni materiales que no se vean claramente en la foto. No uses em
   // deno-lint-ignore no-explicit-any
   const text = parts.find((p: any) => typeof p.text === "string")?.text ?? "";
   return text.trim();
+}
+
+// Saca "Marca: Adidas" -> "Adidas" del texto que devolvió Gemini. Si por lo
+// que sea no respetó el formato pedido, devuelve el fallback en vez de
+// romper la publicación de la prenda.
+function extractField(rawText: string, label: string, fallback: string): string {
+  const match = rawText.match(new RegExp(`${label}\\s*:\\s*(.+)`, "i"));
+  const value = match ? match[1].trim().replace(/^["']|["']$/g, "") : "";
+  return value || fallback;
+}
+
+// Arma la descripción final: estructurada y factual (marca / material /
+// talla / color / estado), sin relleno de tono coloquial.
+function buildDescription(
+  aiFieldsRaw: string,
+  meta: { size?: string; condition?: string }
+): string {
+  const marca = extractField(aiFieldsRaw, "Marca", "No especificada");
+  const material = extractField(aiFieldsRaw, "Material", "No especificado");
+  const color = extractField(aiFieldsRaw, "Color", "No especificado");
+  const talla = meta.size?.trim() || "No especificada";
+  const estado = meta.condition?.trim() || "No especificado";
+
+  return [
+    `Marca: ${marca}`,
+    `Material: ${material}`,
+    `Talla: ${talla}`,
+    `Color: ${color}`,
+    `Estado: ${estado}`,
+  ].join("\n");
 }
 
 async function uploadImage(path: string, bytes: Uint8Array, mimeType: string) {
@@ -273,13 +304,11 @@ Deno.serve(async (req: Request) => {
     const enhancedBytes = await enhancePhoto(originalBytes);
     const enhancedUrl = await uploadImage(`${itemId}/enhanced.jpg`, enhancedBytes, "image/jpeg");
 
-    // 3) Descripción de venta (Gemini, texto — gratis)
-    const description = await callGeminiDescription(imageBase64, mimeType, {
-      price: String(price),
-      category,
-      size,
-      condition,
-    });
+    // 3) Descripción: marca/material/color los identifica Gemini mirando la
+    // foto (gratis, solo texto); talla y estado son los que ya escribió el
+    // admin. El resultado es una descripción factual, no un texto de venta.
+    const aiFieldsRaw = await callGeminiVisualFields(imageBase64, mimeType);
+    const description = buildDescription(aiFieldsRaw, { size, condition });
 
     // 4) Guardar como borrador para que lo revises antes de publicar
     const { data: item, error: insertError } = await supabase
