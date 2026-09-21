@@ -157,7 +157,7 @@ function renderGrid() {
       <div class="photo-wrap">
         ${badge}
         ${discountBadge}
-        <img src="${item.photo_enhanced || item.photo_original || ""}" alt="${escapeHtml(item.title)}" loading="lazy" />
+        <img src="${item.photo_original || item.photo_enhanced || ""}" alt="${escapeHtml(item.title)}" loading="lazy" />
       </div>
       <div class="info">
         ${priceBlockHtml(item)}
@@ -181,7 +181,7 @@ function itemUrl(item) {
 }
 
 function openDetail(item) {
-  const photos = [item.photo_enhanced, item.photo_original].filter(Boolean);
+  const photos = [item.photo_original, item.photo_enhanced].filter(Boolean);
 
   const isAvailable = item.status === "disponible";
   const statusLabel = item.status === "reservada" ? "Reservada" : item.status === "vendida" ? "Vendida" : "";

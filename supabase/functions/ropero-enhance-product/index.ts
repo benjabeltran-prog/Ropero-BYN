@@ -3,13 +3,14 @@
 // ------------------------------------------------------------
 // Recibe la foto de una prenda + datos básicos (precio, categoría,
 // talla, estado) y:
-//   1) mejora la foto con auto-corrección de nivel/contraste por canal
-//      (procesamiento de imagen clásico, GRATIS — no es IA generativa,
-//      así que no inventa nada: solo estira el rango de luz y color de
-//      tu foto real, igual que un "auto niveles" de Photoshop/GIMP)
-//   2) escribe una descripción breve de venta con Gemini (texto, gratis)
+//   1) prepara una segunda copia de la foto: corrige la rotación EXIF y
+//      la redimensiona si es muy grande (sin tocar el color — ver la nota
+//      en enhancePhoto() más abajo sobre por qué se sacó el auto-niveles)
+//   2) escribe una descripción factual con Gemini, mirando la foto (texto,
+//      gratis)
 // Sube las 2 imágenes a Storage y crea la fila en "items" con estado
-// "borrador" para que la revises antes de publicar.
+// "borrador" para que la revises antes de publicar. En el catálogo y el
+// admin se muestra la foto ORIGINAL como principal.
 //
 // Variables de entorno necesarias (se configuran al desplegar,
 // ver SETUP.md):
@@ -51,10 +52,6 @@ function base64ToBytes(base64: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
-}
-
-function clampByte(v: number) {
-  return v < 0 ? 0 : v > 255 ? 255 : v | 0;
 }
 
 // Lee el tag EXIF Orientation (0x0112) directo de los bytes del JPEG.
@@ -124,58 +121,17 @@ function applyExifOrientation(image: Image, orientation: number) {
   }
 }
 
-// "Auto niveles": estira el histograma de cada canal (R, G, B) por
-// separado para que use todo el rango 0-255, recortando un pequeño
-// porcentaje de píxeles extremos (ruido/reflejos) para no distorsionar
-// el resultado. Es el mismo tipo de corrección automática que trae
-// cualquier editor de fotos — no genera contenido nuevo.
-function autoLevels(image: Image, clipPercent = 1) {
-  const { bitmap } = image;
-  const totalPixels = image.width * image.height;
-  const clip = Math.floor((totalPixels * clipPercent) / 100);
-
-  const histR = new Uint32Array(256);
-  const histG = new Uint32Array(256);
-  const histB = new Uint32Array(256);
-
-  for (let i = 0; i < bitmap.length; i += 4) {
-    histR[bitmap[i]]++;
-    histG[bitmap[i + 1]]++;
-    histB[bitmap[i + 2]]++;
-  }
-
-  function bounds(hist: Uint32Array): [number, number] {
-    let lo = 0;
-    let acc = 0;
-    for (; lo < 255; lo++) {
-      acc += hist[lo];
-      if (acc > clip) break;
-    }
-    let hi = 255;
-    acc = 0;
-    for (; hi > 0; hi--) {
-      acc += hist[hi];
-      if (acc > clip) break;
-    }
-    if (hi <= lo) return [0, 255];
-    return [lo, hi];
-  }
-
-  const [rLo, rHi] = bounds(histR);
-  const [gLo, gHi] = bounds(histG);
-  const [bLo, bHi] = bounds(histB);
-
-  const rScale = 255 / Math.max(1, rHi - rLo);
-  const gScale = 255 / Math.max(1, gHi - gLo);
-  const bScale = 255 / Math.max(1, bHi - bLo);
-
-  for (let i = 0; i < bitmap.length; i += 4) {
-    bitmap[i] = clampByte((bitmap[i] - rLo) * rScale);
-    bitmap[i + 1] = clampByte((bitmap[i + 1] - gLo) * gScale);
-    bitmap[i + 2] = clampByte((bitmap[i + 2] - bLo) * bScale);
-  }
-}
-
+// NOTA: acá antes había un "auto niveles" que estiraba el contraste de la
+// foto automáticamente. Se sacó por completo: tanto la versión por canal
+// (R/G/B por separado) como una versión posterior que solo tocaba la
+// luminancia terminaban distorsionando el color real de la prenda —
+// cualquier estiramiento de histograma de toda la foto puede "aplastar"
+// una prenda de color sólido y distinto al fondo (que es prácticamente
+// siempre el caso acá), porque el algoritmo no sabe distinguir "la prenda"
+// de "el fondo": solo ve un histograma. Se probó con fotos reales y en
+// ambos casos el color de la prenda quedaba mal. Mejor no arriesgar el
+// color: esta función ahora SOLO corrige la rotación EXIF y redimensiona
+// si la foto es muy grande — ninguna de las dos toca un solo pixel de color.
 async function enhancePhoto(originalBytes: Uint8Array): Promise<Uint8Array> {
   const orientation = readExifOrientation(originalBytes);
   const image = await Image.decode(originalBytes);
@@ -192,9 +148,7 @@ async function enhancePhoto(originalBytes: Uint8Array): Promise<Uint8Array> {
     }
   }
 
-  autoLevels(image, 1);
-
-  return await image.encodeJPEG(88);
+  return await image.encodeJPEG(92);
 }
 
 // callGeminiVisualFields, extractField y buildDescription viven en
