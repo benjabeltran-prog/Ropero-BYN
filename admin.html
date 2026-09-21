@@ -21,7 +21,7 @@
 
   <link rel="stylesheet" href="css/style.css" />
 </head>
-<body>
+<body class="page-admin">
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -66,52 +66,58 @@
 
       <!-- Tab: nueva prenda -->
       <section id="tab-new" class="admin-section">
-        <div class="photo-preview" id="photo-preview">Toca para elegir una foto</div>
-        <input type="file" id="photo-input" accept="image/*" capture="environment" hidden />
-
-        <div class="row-2">
-          <div class="field">
-            <label for="price">Precio (CLP)</label>
-            <input id="price" type="number" inputmode="numeric" placeholder="15000" />
+        <div class="new-item-layout">
+          <div class="new-item-photo">
+            <div class="photo-preview" id="photo-preview">Toca para elegir una foto</div>
+            <input type="file" id="photo-input" accept="image/*" capture="environment" hidden />
           </div>
-          <div class="field">
-            <label for="category">Categoría</label>
-            <select id="category">
-              <option value="">—</option>
-              <option>Mujer</option>
-              <option>Hombre</option>
-              <option>Niños</option>
-              <option>Accesorios</option>
-              <option>Calzado</option>
-            </select>
+
+          <div class="new-item-fields">
+            <div class="row-2">
+              <div class="field">
+                <label for="price">Precio (CLP)</label>
+                <input id="price" type="number" inputmode="numeric" placeholder="15000" />
+              </div>
+              <div class="field">
+                <label for="category">Categoría</label>
+                <select id="category">
+                  <option value="">—</option>
+                  <option>Mujer</option>
+                  <option>Hombre</option>
+                  <option>Niños</option>
+                  <option>Accesorios</option>
+                  <option>Calzado</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row-2">
+              <div class="field">
+                <label for="size">Talla</label>
+                <input id="size" type="text" placeholder="M, 38, única…" />
+              </div>
+              <div class="field">
+                <label for="condition">Estado</label>
+                <select id="condition">
+                  <option value="">—</option>
+                  <option>Nuevo con etiqueta</option>
+                  <option>Como nuevo</option>
+                  <option>Buen estado</option>
+                  <option>Con detalles</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="reference-price">Precio de referencia (opcional)</label>
+              <input id="reference-price" type="number" inputmode="numeric" placeholder="Precio original, solo si lo sabes" />
+            </div>
+
+            <div id="generate-status" class="status-banner" hidden></div>
+
+            <button id="generate-btn" class="btn btn-primary">Generar con IA</button>
           </div>
         </div>
-
-        <div class="row-2">
-          <div class="field">
-            <label for="size">Talla</label>
-            <input id="size" type="text" placeholder="M, 38, única…" />
-          </div>
-          <div class="field">
-            <label for="condition">Estado</label>
-            <select id="condition">
-              <option value="">—</option>
-              <option>Nuevo con etiqueta</option>
-              <option>Como nuevo</option>
-              <option>Buen estado</option>
-              <option>Con detalles</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="reference-price">Precio de referencia (opcional)</label>
-          <input id="reference-price" type="number" inputmode="numeric" placeholder="Precio original, solo si lo sabes" />
-        </div>
-
-        <div id="generate-status" class="status-banner" hidden></div>
-
-        <button id="generate-btn" class="btn btn-primary">Generar con IA</button>
       </section>
 
       <!-- Tab: listado -->
