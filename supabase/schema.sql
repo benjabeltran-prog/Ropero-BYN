@@ -34,7 +34,10 @@ create table if not exists ropero.items (
                                    -- si está, el % de descuento se calcula de ahí en vez
                                    -- de simularse (ver discountInfo() en catalog.js)
   created_at timestamptz not null default now(),
-  reserved_at timestamptz
+  reserved_at timestamptz,
+  sold_at timestamptz -- cuándo pasó a "vendida" (admin.js lo setea al marcarla);
+                       -- se usa para el badge "Vendido" reciente en el catálogo y
+                       -- para el tiempo promedio hasta la venta en el dashboard
 );
 
 comment on table ropero.items is 'Prendas del catálogo de Ropero';
@@ -113,16 +116,47 @@ grant execute on function ropero.reserve_item(uuid) to anon, authenticated;
 create table if not exists ropero.settings (
   id int primary key default 1,
   whatsapp_number text,
+  reservation_hours int not null default 4, -- horas que dura una reserva antes de
+                                             -- liberarse sola (ver release_expired_reservations)
   updated_at timestamptz not null default now(),
   constraint settings_singleton check (id = 1)
 );
+
+-- Por si la tabla ya existía de antes de agregar esta columna
+alter table ropero.settings add column if not exists reservation_hours int not null default 4;
 
 insert into ropero.settings (id, whatsapp_number)
 values (1, '56966574792')
 on conflict (id) do nothing;
 
 comment on table ropero.settings is
-  'Configuración de Ropero editable desde el admin (fila única, id=1). whatsapp_number: número al que apunta el botón "Reservar por WhatsApp" del catálogo.';
+  'Configuración de Ropero editable desde el admin (fila única, id=1). whatsapp_number: número al que apunta el botón "Reservar por WhatsApp" del catálogo. reservation_hours: horas antes de liberar automáticamente una reserva no concretada.';
+
+-- 3.2) Liberar reservas vencidas ---------------------------------------------
+-- Si una reserva no se concreta, no debería bloquear la prenda para siempre.
+-- Corre con privilegios elevados para poder actualizar aunque la llame un
+-- visitante anónimo; el catálogo la invoca de forma oportunista en cada carga
+-- (no hace falta un cron aparte).
+create or replace function ropero.release_expired_reservations()
+returns void
+language plpgsql
+security definer
+set search_path = ropero
+as $$
+declare
+  hours_limit int;
+begin
+  select coalesce(reservation_hours, 4) into hours_limit from ropero.settings where id = 1;
+
+  update ropero.items
+    set status = 'disponible', reserved_at = null
+    where status = 'reservada'
+      and reserved_at is not null
+      and reserved_at < now() - (hours_limit || ' hours')::interval;
+end;
+$$;
+
+grant execute on function ropero.release_expired_reservations() to anon, authenticated;
 
 grant select on ropero.settings to anon;
 grant select, update on ropero.settings to authenticated;

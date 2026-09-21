@@ -60,6 +60,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="new">Nueva prenda</button>
         <button class="tab" data-tab="items">Prendas</button>
+        <button class="tab" data-tab="dashboard">Dashboard</button>
         <button class="tab" data-tab="settings">Ajustes</button>
       </div>
 
@@ -118,6 +119,11 @@
         <div id="items-list"></div>
       </section>
 
+      <!-- Tab: dashboard -->
+      <section id="tab-dashboard" class="admin-section" hidden>
+        <div id="dashboard-root"></div>
+      </section>
+
       <!-- Tab: ajustes -->
       <section id="tab-settings" class="admin-section" hidden>
         <div class="field">
@@ -127,6 +133,13 @@
         <p class="settings-hint">
           Formato internacional, solo dígitos (sin +, espacios ni guiones). Ejemplo Chile: 56912345678.
           A este número llegan los mensajes de "Reservar por WhatsApp" del catálogo.
+        </p>
+        <div class="field">
+          <label for="settings-reservation-hours">Horas para liberar una reserva</label>
+          <input id="settings-reservation-hours" type="number" inputmode="numeric" min="1" max="168" placeholder="4" />
+        </div>
+        <p class="settings-hint">
+          Si nadie confirma la compra por WhatsApp en ese plazo, la prenda vuelve sola a "Disponible" en el catálogo.
         </p>
         <div id="settings-status" class="status-banner" hidden></div>
         <button id="settings-save-btn" class="btn btn-primary">Guardar</button>

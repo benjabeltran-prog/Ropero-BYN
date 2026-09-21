@@ -221,8 +221,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     document.getElementById("tab-new").hidden = tab.dataset.tab !== "new";
     document.getElementById("tab-items").hidden = tab.dataset.tab !== "items";
+    document.getElementById("tab-dashboard").hidden = tab.dataset.tab !== "dashboard";
     document.getElementById("tab-settings").hidden = tab.dataset.tab !== "settings";
     if (tab.dataset.tab === "items") loadItems();
+    if (tab.dataset.tab === "dashboard") loadDashboard();
     if (tab.dataset.tab === "settings") loadSettingsView();
   });
 });
@@ -425,6 +427,12 @@ function escapeAttr(str) {
   return (str || "").replace(/"/g, "&quot;");
 }
 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
 function selectOptions(options, current) {
   return (
     `<option value="">—</option>` +
@@ -612,14 +620,14 @@ async function handleAction(action, item) {
     return;
   }
   if (action === "vendida") {
-    await supabase.from("items").update({ status: "vendida" }).eq("id", item.id);
+    await supabase.from("items").update({ status: "vendida", sold_at: new Date().toISOString() }).eq("id", item.id);
   }
   if (action === "liberar") {
     await supabase.from("items").update({ status: "disponible", reserved_at: null }).eq("id", item.id);
   }
   if (action === "reactivar") {
     // La venta no se concretó: vuelve a quedar disponible en el catálogo.
-    await supabase.from("items").update({ status: "disponible", reserved_at: null }).eq("id", item.id);
+    await supabase.from("items").update({ status: "disponible", reserved_at: null, sold_at: null }).eq("id", item.id);
   }
   if (action === "eliminar") {
     if (!confirm(`¿Eliminar "${item.title}"? Esta acción no se puede deshacer.`)) return;
@@ -628,12 +636,109 @@ async function handleAction(action, item) {
   loadItems();
 }
 
+// ---------- Dashboard --------------------------------------------------------
+// Números simples calculados a partir de las prendas que ya existen — sin
+// tracking de vistas ni nada aparte, todo sale de la misma tabla items.
+
+const dashboardRoot = document.getElementById("dashboard-root");
+
+function daysBetween(a, b) {
+  return (new Date(b).getTime() - new Date(a).getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function statTileHtml(value, label) {
+  return `
+    <div class="dash-tile">
+      <div class="dash-tile-value">${value}</div>
+      <div class="dash-tile-label">${label}</div>
+    </div>
+  `;
+}
+
+function categoryBarsHtml(counts) {
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    return `<p class="settings-hint">Todavía no hay ventas registradas para desglosar por categoría.</p>`;
+  }
+  const max = entries[0][1];
+  return `
+    <div class="dash-bars">
+      ${entries
+        .map(
+          ([category, count]) => `
+            <div class="dash-bar-row">
+              <div class="dash-bar-label">
+                <span>${escapeHtml(category)}</span>
+                <span class="dash-bar-count">${count}</span>
+              </div>
+              <div class="dash-bar-track">
+                <div class="dash-bar-fill" style="width:${Math.max(6, Math.round((count / max) * 100))}%"></div>
+              </div>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+async function loadDashboard() {
+  dashboardRoot.innerHTML = `<div class="status-banner">Cargando…</div>`;
+
+  const { data, error } = await supabase
+    .from("items")
+    .select("id, status, price, category, created_at, sold_at");
+
+  if (error) {
+    dashboardRoot.innerHTML = `<div class="status-banner error">No se pudo cargar: ${error.message}</div>`;
+    return;
+  }
+
+  const items = data || [];
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const active = items.filter((i) => i.status === "disponible" || i.status === "reservada");
+  const activeValue = active.reduce((sum, i) => sum + (i.price || 0), 0);
+
+  const sold = items.filter((i) => i.status === "vendida");
+  const soldThisMonth = sold.filter((i) => i.sold_at && new Date(i.sold_at) >= monthStart);
+  const soldThisMonthRevenue = soldThisMonth.reduce((sum, i) => sum + (i.price || 0), 0);
+
+  const soldWithDates = sold.filter((i) => i.sold_at && i.created_at);
+  const avgDays = soldWithDates.length
+    ? soldWithDates.reduce((sum, i) => sum + daysBetween(i.created_at, i.sold_at), 0) / soldWithDates.length
+    : null;
+
+  const borradores = items.filter((i) => i.status === "borrador").length;
+
+  const categoryCounts = {};
+  sold.forEach((i) => {
+    const cat = i.category || "Sin categoría";
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  });
+
+  dashboardRoot.innerHTML = `
+    <div class="dash-grid">
+      ${statTileHtml(active.length, "Prendas activas")}
+      ${statTileHtml(money(activeValue), "Valor en catálogo")}
+      ${statTileHtml(soldThisMonth.length, "Vendidas este mes")}
+      ${statTileHtml(money(soldThisMonthRevenue), "Ingresos este mes")}
+      ${statTileHtml(avgDays !== null ? `${avgDays.toFixed(1)} días` : "—", "Tiempo prom. hasta la venta")}
+      ${statTileHtml(borradores, "Borradores por revisar")}
+    </div>
+    <div class="dash-section-title">Vendidas por categoría</div>
+    ${categoryBarsHtml(categoryCounts)}
+  `;
+}
+
 // ---------- Ajustes ---------------------------------------------------------
 // Configuración de la app editable sin tocar código (fila única en
 // ropero.settings). Por ahora solo el número de WhatsApp del botón
 // "Reservar por WhatsApp" del catálogo.
 
 const settingsWhatsappInput = document.getElementById("settings-whatsapp");
+const settingsReservationHoursInput = document.getElementById("settings-reservation-hours");
 const settingsStatus = document.getElementById("settings-status");
 const settingsSaveBtn = document.getElementById("settings-save-btn");
 
@@ -645,13 +750,19 @@ function showSettingsStatus(text, isError) {
 
 async function loadSettingsView() {
   settingsWhatsappInput.value = "";
+  settingsReservationHoursInput.value = "";
   showSettingsStatus("Cargando…", false);
-  const { data, error } = await supabase.from("settings").select("whatsapp_number").eq("id", 1).maybeSingle();
+  const { data, error } = await supabase
+    .from("settings")
+    .select("whatsapp_number, reservation_hours")
+    .eq("id", 1)
+    .maybeSingle();
   if (error) {
     showSettingsStatus("No se pudo cargar la configuración: " + error.message, true);
     return;
   }
   settingsWhatsappInput.value = data?.whatsapp_number || "";
+  settingsReservationHoursInput.value = data?.reservation_hours ?? 4;
   settingsStatus.hidden = true;
 }
 
@@ -662,12 +773,18 @@ settingsSaveBtn.addEventListener("click", async () => {
     return;
   }
 
+  const reservation_hours = Number(settingsReservationHoursInput.value);
+  if (!Number.isInteger(reservation_hours) || reservation_hours < 1 || reservation_hours > 168) {
+    showSettingsStatus("Ingresa un número de horas válido (entre 1 y 168).", true);
+    return;
+  }
+
   settingsSaveBtn.disabled = true;
   settingsSaveBtn.textContent = "Guardando…";
 
   const { error } = await supabase
     .from("settings")
-    .update({ whatsapp_number, updated_at: new Date().toISOString() })
+    .update({ whatsapp_number, reservation_hours, updated_at: new Date().toISOString() })
     .eq("id", 1);
 
   settingsSaveBtn.disabled = false;
@@ -677,7 +794,7 @@ settingsSaveBtn.addEventListener("click", async () => {
     showSettingsStatus("No se pudo guardar: " + error.message, true);
     return;
   }
-  showSettingsStatus("Listo, se guardó el número.", false);
+  showSettingsStatus("Listo, se guardaron los cambios.", false);
 });
 
 // ---------- Init -----------------------------------------------------------

@@ -182,6 +182,47 @@ button {
   flex: none;
 }
 
+/* Buscador ------------------------------------------------------ */
+.search-bar {
+  position: relative;
+  padding: 4px 16px 0;
+}
+
+.search-bar .search-icon {
+  position: absolute;
+  left: 29px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-bar input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 10px 14px 10px 38px;
+  font-size: 14.5px;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.search-bar input::placeholder {
+  color: var(--muted);
+}
+
+.search-bar input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Safari/iOS agrega una "x" nativa a los inputs type=search; con la
+   nuestra ya se ve bien sin ella y evita que se duplique visualmente. */
+.search-bar input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
 /* Filters ------------------------------------------------------ */
 .filters {
   display: flex;
@@ -355,7 +396,18 @@ button {
 }
 
 .badge.vendida {
-  background: var(--danger);
+  background: var(--text);
+}
+
+/* Prenda vendida: sigue visible en el catálogo un tiempo (da confianza,
+   se ve que la tienda se mueve) pero clarito de que ya no se puede pedir. */
+.card.sold .photo-wrap img {
+  filter: grayscale(45%);
+  opacity: 0.75;
+}
+
+.card.sold .info {
+  opacity: 0.7;
 }
 
 .empty-state {
@@ -781,6 +833,71 @@ button {
   line-height: 1.5;
   color: var(--muted);
   margin: -6px 0 16px;
+}
+
+/* Dashboard ----------------------------------------------------- */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.dash-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.dash-tile-value {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.dash-tile-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.dash-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.dash-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dash-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.dash-bar-count {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.dash-bar-track {
+  background: var(--surface-2);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.dash-bar-fill {
+  background: var(--accent);
+  height: 100%;
+  border-radius: 999px;
 }
 
 .spinner {

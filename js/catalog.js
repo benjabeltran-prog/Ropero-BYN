@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient.js";
 const grid = document.getElementById("grid");
 const emptyState = document.getElementById("empty-state");
 const filtersEl = document.getElementById("filters");
+const searchInput = document.getElementById("search-input");
 const detailRoot = document.getElementById("detail-root");
 const toastRoot = document.getElementById("toast-root");
 const shareCatalogBtn = document.getElementById("share-catalog-btn");
@@ -11,6 +12,7 @@ const money = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
 
 const NEW_WINDOW_MS = 4 * 24 * 60 * 60 * 1000; // "Nuevo" mientras tenga menos de 4 días publicada
+const SOLD_VISIBLE_MS = 21 * 24 * 60 * 60 * 1000; // "Vendido" se muestra hasta 21 días después de venderse
 const WHATSAPP_ICON = `<svg class="wa-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.4-1.5-.9-.8-1.5-1.8-1.6-2.1-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.3-.5.1-.2 0-.4 0-.5C10 9 9.5 7.7 9.3 7.2c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.5.1-.7.3-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.9.5 3.6 1.5 5.2L2 22l4.9-1.5c1.5.9 3.3 1.4 5.1 1.4 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.7 0-3.3-.5-4.6-1.3l-.3-.2-3.3 1 1-3.2-.2-.3C3.9 14.6 3.3 13 3.3 11.4c0-4.8 3.9-8.6 8.7-8.6s8.7 3.9 8.7 8.6-3.9 8.6-8.7 8.6z"></path></svg>`;
 const SHARE_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"></line><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line></svg>`;
 const CHECK_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.3 10.6 15 16 9.3"></path></svg>`;
@@ -29,6 +31,7 @@ function showEmptyState(icon, title, sub) {
 
 let allItems = [];
 let activeCategory = "Todas";
+let searchQuery = "";
 let sharedItemHandled = false;
 
 // Número de WhatsApp al que apunta "Reservar por WhatsApp". Se puede
@@ -44,13 +47,29 @@ async function loadSettings() {
   }
 }
 
+// Si una reserva no se concreta, no debería bloquear la prenda para
+// siempre: esta función (definida en la base) libera solas las reservas
+// más viejas que el plazo configurado en Ajustes. Se llama de forma
+// oportunista antes de cada carga del catálogo — no hace falta un cron
+// aparte. Si falla (ej. sin internet un instante), no interrumpe nada:
+// simplemente se reintenta en la próxima carga.
+async function releaseExpiredReservations() {
+  try {
+    await supabase.rpc("release_expired_reservations");
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 renderSkeleton();
 
 async function loadItems() {
+  await releaseExpiredReservations();
+
   const { data, error } = await supabase
     .from("items")
     .select("*")
-    .in("status", ["disponible", "reservada"])
+    .in("status", ["disponible", "reservada", "vendida"])
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -60,7 +79,14 @@ async function loadItems() {
     return;
   }
 
-  allItems = data || [];
+  // Las vendidas se muestran un tiempo (prueba social / "esto se mueve"),
+  // pero no para siempre: las más viejas se sacan solas del catálogo.
+  allItems = (data || []).filter((item) => {
+    if (item.status !== "vendida") return true;
+    if (!item.sold_at) return false;
+    return Date.now() - new Date(item.sold_at).getTime() < SOLD_VISIBLE_MS;
+  });
+
   renderFilters();
   renderGrid();
   maybeOpenSharedItem();
@@ -107,6 +133,23 @@ function isNew(item) {
   return Number.isFinite(created) && Date.now() - created < NEW_WINDOW_MS;
 }
 
+// Sin tildes/mayúsculas, para que buscar "polera" encuentre "Polera" o
+// "pólera" igual.
+function normalizeText(str) {
+  return (str || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
+function matchesSearch(item, query) {
+  if (!query) return true;
+  const haystack = normalizeText(
+    [item.title, item.description, item.category, item.size, item.condition].filter(Boolean).join(" ")
+  );
+  return haystack.includes(query);
+}
+
 // Hash simple y estable a partir del id de la prenda: el mismo id siempre
 // da el mismo número, así el % de descuento de cada prenda no cambia entre
 // recargas, pero es distinto de una prenda a otra (no se ve "clonado").
@@ -146,12 +189,26 @@ function priceBlockHtml(item, { size = "" } = {}) {
 }
 
 function renderGrid() {
-  const items = allItems.filter((i) => activeCategory === "Todas" || i.category === activeCategory);
+  const query = normalizeText(searchQuery.trim());
+  const items = allItems
+    .filter((i) => (activeCategory === "Todas" || i.category === activeCategory) && matchesSearch(i, query))
+    // Las vendidas quedan al final (siguen visibles como prueba social,
+    // pero no le ganan el lugar a lo que sí se puede comprar).
+    .sort((a, b) => {
+      const soldA = a.status === "vendida" ? 1 : 0;
+      const soldB = b.status === "vendida" ? 1 : 0;
+      if (soldA !== soldB) return soldA - soldB;
+      const dateA = new Date(soldA ? a.sold_at : a.created_at).getTime();
+      const dateB = new Date(soldB ? b.sold_at : b.created_at).getTime();
+      return dateB - dateA;
+    });
 
   grid.innerHTML = "";
 
   if (items.length > 0) {
     emptyState.hidden = true;
+  } else if (query) {
+    showEmptyState(EMPTY_ICON_SEARCH, "Sin resultados", `No encontramos prendas para “${searchQuery.trim()}”.`);
   } else if (allItems.length > 0) {
     showEmptyState(EMPTY_ICON_SEARCH, "No hay prendas con ese filtro", "Prueba con otra categoría.");
   } else {
@@ -163,14 +220,16 @@ function renderGrid() {
   }
 
   items.forEach((item) => {
+    const isSold = item.status === "vendida";
     const card = document.createElement("button");
-    card.className = "card";
-    const badge =
-      item.status === "reservada"
-        ? '<span class="badge reservada">Reservada</span>'
-        : isNew(item)
-        ? '<span class="badge new">Nuevo</span>'
-        : "";
+    card.className = "card" + (isSold ? " sold" : "");
+    const badge = isSold
+      ? '<span class="badge vendida">Vendido</span>'
+      : item.status === "reservada"
+      ? '<span class="badge reservada">Reservada</span>'
+      : isNew(item)
+      ? '<span class="badge new">Nuevo</span>'
+      : "";
     const discountBadge = `<span class="badge discount">-${discountInfo(item).pct}%</span>`;
     card.innerHTML = `
       <div class="photo-wrap">
@@ -367,6 +426,15 @@ function shareItem(item) {
 
 if (shareCatalogBtn) {
   shareCatalogBtn.addEventListener("click", shareCatalog);
+}
+
+// ---------- Buscador -------------------------------------------------------
+
+if (searchInput) {
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value;
+    renderGrid();
+  });
 }
 
 // ---------- Toasts -------------------------------------------------------
