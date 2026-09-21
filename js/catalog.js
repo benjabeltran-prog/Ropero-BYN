@@ -4,6 +4,7 @@ const grid = document.getElementById("grid");
 const emptyState = document.getElementById("empty-state");
 const filtersEl = document.getElementById("filters");
 const searchInput = document.getElementById("search-input");
+const searchSuggestions = document.getElementById("search-suggestions");
 const detailRoot = document.getElementById("detail-root");
 const toastRoot = document.getElementById("toast-root");
 const shareCatalogBtn = document.getElementById("share-catalog-btn");
@@ -142,12 +143,72 @@ function normalizeText(str) {
     .toLowerCase();
 }
 
-function matchesSearch(item, query) {
-  if (!query) return true;
+// Grupos de palabras equivalentes: si alguien busca "remera" también
+// tiene que encontrar las prendas descritas como "polera" (y viceversa).
+// Mezcla términos genéricos de habla hispana con chilenismos (jockey,
+// poleron, guagua), porque quien comparte el link puede ser de otra
+// región. Cada grupo va normalizado (sin tildes) al cargarse.
+const SYNONYM_GROUPS = [
+  ["polera", "camiseta", "remera", "playera", "franela", "t-shirt", "tshirt"],
+  ["poleron", "buzo", "hoodie", "sudadera", "canguro"],
+  ["chaqueta", "campera", "cazadora", "casaca", "parka", "rompeviento"],
+  ["pantalon", "pantalones", "jean", "jeans", "vaquero", "vaqueros", "mezclilla", "pitillo"],
+  ["falda", "pollera"],
+  ["vestido", "vestidos"],
+  ["blusa", "blusas"],
+  ["sueter", "sweater", "chompa", "pullover", "jersey"],
+  ["short", "shorts", "bermuda", "bermudas"],
+  ["polo", "chomba"],
+  ["traje de baño", "bañador", "malla", "vestido de baño"],
+  ["zapatillas", "zapatilla", "tenis", "sneakers", "deportivas", "championes"],
+  ["zapatos", "zapato", "calzado"],
+  ["botas", "botines", "botin", "bota"],
+  ["sandalias", "sandalia", "chalas", "ojotas"],
+  ["cartera", "carteras", "bolso", "bolsos", "bolsa", "mochila", "mochilas"],
+  ["gorro", "gorra", "jockey", "beanie"],
+  ["cinturon", "correa"],
+  ["bufanda", "chalina"],
+  ["lentes", "anteojos", "gafas"],
+  ["bebe", "bebes", "guagua", "guaguas"],
+  ["nino", "ninos", "niños", "infantil"],
+];
+
+const SYNONYM_MAP = (() => {
+  const map = new Map();
+  SYNONYM_GROUPS.forEach((group) => {
+    const normalized = group.map(normalizeText);
+    normalized.forEach((word) => {
+      const existing = map.get(word) || new Set();
+      normalized.forEach((w) => existing.add(w));
+      map.set(word, existing);
+    });
+  });
+  return map;
+})();
+
+// Para un término buscado, todas sus formas equivalentes (incluyéndolo a
+// él mismo) — así "remera" también matchea prendas que dicen "polera".
+function expandTerm(term) {
+  return SYNONYM_MAP.get(term) || new Set([term]);
+}
+
+// Búsqueda por palabras (todas tienen que aparecer, en cualquier orden) y
+// con sinónimos: "chaqueta mujer" encuentra "Campera de mujer" igual.
+function matchesSearch(item, tokens) {
+  if (!tokens.length) return true;
   const haystack = normalizeText(
     [item.title, item.description, item.category, item.size, item.condition].filter(Boolean).join(" ")
   );
-  return haystack.includes(query);
+  return tokens.every((token) => {
+    for (const variant of expandTerm(token)) {
+      if (haystack.includes(variant)) return true;
+    }
+    return false;
+  });
+}
+
+function searchTokens(query) {
+  return normalizeText(query).trim().split(/\s+/).filter(Boolean);
 }
 
 // Hash simple y estable a partir del id de la prenda: el mismo id siempre
@@ -189,9 +250,9 @@ function priceBlockHtml(item, { size = "" } = {}) {
 }
 
 function renderGrid() {
-  const query = normalizeText(searchQuery.trim());
+  const tokens = searchTokens(searchQuery);
   const items = allItems
-    .filter((i) => (activeCategory === "Todas" || i.category === activeCategory) && matchesSearch(i, query))
+    .filter((i) => (activeCategory === "Todas" || i.category === activeCategory) && matchesSearch(i, tokens))
     // Las vendidas quedan al final (siguen visibles como prueba social,
     // pero no le ganan el lugar a lo que sí se puede comprar).
     .sort((a, b) => {
@@ -207,7 +268,7 @@ function renderGrid() {
 
   if (items.length > 0) {
     emptyState.hidden = true;
-  } else if (query) {
+  } else if (tokens.length) {
     showEmptyState(EMPTY_ICON_SEARCH, "Sin resultados", `No encontramos prendas para “${searchQuery.trim()}”.`);
   } else if (allItems.length > 0) {
     showEmptyState(EMPTY_ICON_SEARCH, "No hay prendas con ese filtro", "Prueba con otra categoría.");
@@ -428,12 +489,82 @@ if (shareCatalogBtn) {
   shareCatalogBtn.addEventListener("click", shareCatalog);
 }
 
-// ---------- Buscador -------------------------------------------------------
+// ---------- Buscador (predictivo) ------------------------------------------
+// Mientras se escribe, además de filtrar la grilla de abajo, se muestra un
+// desplegable con las primeras coincidencias (foto + título + precio) para
+// saltar directo a una prenda sin tener que scrollear.
+
+function suggestionRowHtml(item) {
+  const photo = item.photo_original || item.photo_enhanced || "";
+  return `
+    <button type="button" class="suggestion-row" data-id="${item.id}">
+      <img src="${photo}" alt="" loading="lazy" />
+      <div class="suggestion-info">
+        <div class="suggestion-title">${escapeHtml(item.title)}</div>
+        <div class="suggestion-price">${money(item.price)}</div>
+      </div>
+    </button>
+  `;
+}
+
+function hideSuggestions() {
+  if (!searchSuggestions) return;
+  searchSuggestions.hidden = true;
+  searchSuggestions.innerHTML = "";
+}
+
+function renderSuggestions() {
+  if (!searchSuggestions) return;
+  const tokens = searchTokens(searchQuery);
+  // Las vendidas no se sugieren acá (son un callejón sin salida para quien
+  // busca algo para comprar); igual aparecen más abajo en la grilla.
+  const matches = tokens.length ? allItems.filter((i) => i.status !== "vendida" && matchesSearch(i, tokens)) : [];
+
+  if (!matches.length) {
+    hideSuggestions();
+    return;
+  }
+
+  const SUGGESTIONS_LIMIT = 6;
+  const shown = matches.slice(0, SUGGESTIONS_LIMIT);
+  const moreCount = matches.length - shown.length;
+
+  searchSuggestions.innerHTML =
+    shown.map(suggestionRowHtml).join("") +
+    (moreCount > 0
+      ? `<div class="suggestion-more">+${moreCount} resultado${moreCount === 1 ? "" : "s"} más abajo</div>`
+      : "");
+  searchSuggestions.hidden = false;
+
+  searchSuggestions.querySelectorAll(".suggestion-row").forEach((row) => {
+    // mousedown (no click): se dispara antes del blur del input, si no el
+    // blur alcanza a esconder el desplegable antes de abrir la prenda.
+    row.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const item = allItems.find((i) => i.id === row.dataset.id);
+      hideSuggestions();
+      if (item) openDetail(item);
+    });
+  });
+}
 
 if (searchInput) {
   searchInput.addEventListener("input", () => {
     searchQuery = searchInput.value;
     renderGrid();
+    renderSuggestions();
+  });
+  searchInput.addEventListener("focus", () => {
+    if (searchQuery.trim()) renderSuggestions();
+  });
+  searchInput.addEventListener("blur", () => {
+    setTimeout(hideSuggestions, 120);
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      searchInput.blur();
+      hideSuggestions();
+    }
   });
 }
 
