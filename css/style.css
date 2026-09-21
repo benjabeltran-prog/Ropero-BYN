@@ -630,6 +630,24 @@ button {
   margin-bottom: 5px;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.field-label-row label {
+  margin-bottom: 0;
+}
+
+.field-label-row .btn-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .field input,
 .field select,
 .field textarea {

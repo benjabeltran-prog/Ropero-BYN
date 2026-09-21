@@ -17,6 +17,20 @@ const itemsList = document.getElementById("items-list");
 
 let selectedFile = null;
 
+const REGEN_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
+
+// Vuelve a generarle la descripción a una prenda que ya existe (borrador o
+// publicada), mirando de nuevo la foto con Gemini. No guarda nada — solo
+// devuelve el texto para que quien esté editando decida si lo conserva.
+async function regenerateDescription(imageUrl, size, condition) {
+  const { data, error } = await supabase.functions.invoke("ropero-regenerate-description", {
+    body: { imageUrl, size, condition },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data.description;
+}
+
 // ---------- Auth ---------------------------------------------------------
 
 async function checkSession() {
@@ -182,7 +196,10 @@ function openReview(item) {
             <input id="review-price" type="number" value="${item.price}" />
           </div>
           <div class="field">
-            <label>Descripción</label>
+            <div class="field-label-row">
+              <label>Descripción</label>
+              <button type="button" class="btn btn-secondary btn-small" id="review-regen-btn">${REGEN_ICON} Regenerar con IA</button>
+            </div>
             <textarea id="review-description">${item.description || ""}</textarea>
           </div>
         </div>
@@ -197,6 +214,22 @@ function openReview(item) {
   document.getElementById("review-close").addEventListener("click", closeReview);
   document.getElementById("review-overlay").addEventListener("click", (e) => {
     if (e.target.id === "review-overlay") closeReview();
+  });
+
+  document.getElementById("review-regen-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Generando…`;
+    try {
+      const imageUrl = item.photo_original || item.photo_enhanced;
+      const description = await regenerateDescription(imageUrl, item.size, item.condition);
+      document.getElementById("review-description").value = description;
+    } catch (err) {
+      alert("No se pudo regenerar la descripción: " + (err.message || err));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `${REGEN_ICON} Regenerar con IA`;
+    }
   });
 
   document.getElementById("discard-btn").addEventListener("click", async () => {
@@ -281,7 +314,10 @@ function openEdit(item) {
             </div>
           </div>
           <div class="field">
-            <label for="edit-description">Descripción</label>
+            <div class="field-label-row">
+              <label for="edit-description">Descripción</label>
+              <button type="button" class="btn btn-secondary btn-small" id="edit-regen-btn">${REGEN_ICON} Regenerar con IA</button>
+            </div>
             <textarea id="edit-description">${item.description || ""}</textarea>
           </div>
         </div>
@@ -292,6 +328,26 @@ function openEdit(item) {
       <button class="btn btn-primary" id="edit-save-btn">Guardar cambios</button>
     </div>
   `;
+
+  document.getElementById("edit-regen-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Generando…`;
+    try {
+      const imageUrl = item.photo_original || item.photo_enhanced;
+      // Usa la talla/estado que están escritos AHORA en el formulario (por
+      // si se acaban de corregir), no los que tenía la prenda al abrir esto.
+      const size = document.getElementById("edit-size").value.trim();
+      const condition = document.getElementById("edit-condition").value;
+      const description = await regenerateDescription(imageUrl, size, condition);
+      document.getElementById("edit-description").value = description;
+    } catch (err) {
+      alert("No se pudo regenerar la descripción: " + (err.message || err));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `${REGEN_ICON} Regenerar con IA`;
+    }
+  });
 
   document.getElementById("edit-close").addEventListener("click", closeReview);
   document.getElementById("edit-cancel-btn").addEventListener("click", closeReview);
